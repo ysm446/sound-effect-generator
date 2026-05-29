@@ -39,6 +39,14 @@ export const api = {
     }).then(jsonOrThrow);
   },
 
+  suggest(idea) {
+    return fetch(`${API_BASE}/api/suggest`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ idea }),
+    }).then(jsonOrThrow);
+  },
+
   createJob(params) {
     return fetch(`${API_BASE}/api/generate`, {
       method: "POST",

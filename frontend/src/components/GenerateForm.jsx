@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { useI18n } from "../i18n.jsx";
+import { api } from "../api.js";
 
 const DEFAULTS = {
   prompt: "",
@@ -12,7 +13,31 @@ const DEFAULTS = {
 export default function GenerateForm({ onSubmit, disabled, onWidthHint, applyValues }) {
   const { t } = useI18n();
   const [form, setForm] = useState(DEFAULTS);
+  const [suggesting, setSuggesting] = useState(false);
+  const [suggestion, setSuggestion] = useState(null);
   const taRef = useRef(null);
+
+  // Ask the backend LLM to turn the current (rough) prompt into a polished
+  // English sound-effect prompt, shown below as a candidate to apply.
+  const handleSuggest = async () => {
+    const idea = form.prompt.trim();
+    if (!idea || suggesting) return;
+    setSuggesting(true);
+    setSuggestion(null);
+    try {
+      const { prompt } = await api.suggest(idea);
+      if (prompt) setSuggestion(prompt);
+    } catch {
+      /* ignore; leave the form untouched */
+    } finally {
+      setSuggesting(false);
+    }
+  };
+
+  const applySuggestion = () => {
+    setForm((f) => ({ ...f, prompt: suggestion }));
+    setSuggestion(null);
+  };
 
   // Load a card's settings into the form (triggered from a result card menu).
   useEffect(() => {
@@ -62,7 +87,17 @@ export default function GenerateForm({ onSubmit, disabled, onWidthHint, applyVal
   return (
     <form onSubmit={submit} className="gen-form">
       <label>
-        {t("prompt")}
+        <span className="label-row">
+          {t("prompt")}
+          <button
+            type="button"
+            className="suggest-btn"
+            onClick={handleSuggest}
+            disabled={!form.prompt.trim() || suggesting}
+          >
+            {suggesting ? t("suggesting") : `✨ ${t("suggest")}`}
+          </button>
+        </span>
         <textarea
           ref={taRef}
           rows={3}
@@ -72,6 +107,17 @@ export default function GenerateForm({ onSubmit, disabled, onWidthHint, applyVal
           required
         />
       </label>
+
+      {suggestion && (
+        <button
+          type="button"
+          className="suggestion-chip"
+          onClick={applySuggestion}
+          title={t("suggestHint")}
+        >
+          {suggestion}
+        </button>
+      )}
 
       <div className="settings-group">
         <SliderField

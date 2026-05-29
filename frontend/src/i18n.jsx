@@ -22,6 +22,9 @@ const STRINGS = {
     connectError: "Cannot connect to the backend. Check that the server is running.",
 
     prompt: "Prompt (English recommended)",
+    suggest: "Suggest",
+    suggesting: "Thinking…",
+    suggestHint: "Click to use this prompt",
     length: "Length",
     lengthHelp: "Length of the generated sound (seconds)",
     steps: "Steps",
@@ -65,6 +68,9 @@ const STRINGS = {
     connectError: "バックエンドに接続できません。サーバーが起動しているか確認してください。",
 
     prompt: "プロンプト（英語推奨）",
+    suggest: "推測",
+    suggesting: "推測中…",
+    suggestHint: "クリックで適用",
     length: "長さ",
     lengthHelp: "生成する音の長さ（秒）",
     steps: "ステップ数",

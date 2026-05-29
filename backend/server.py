@@ -24,6 +24,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 import engine
+import suggest
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 OUTPUT_DIR = PROJECT_ROOT / "data"
@@ -42,6 +43,7 @@ class Job:
     cfg_scale: float
     negative_prompt: Optional[str]
     seed: int
+    title: Optional[str] = None  # short Qwen-generated name for the card
     status: str = "queued"  # queued | running | done | error
     message: str = ""
     created_at: float = field(default_factory=time.time)
@@ -149,6 +151,18 @@ def _worker() -> None:
             def progress(msg: str, _job=job) -> None:
                 with JOBS_LOCK:
                     _job.message = msg
+
+            # Give the card a short, readable name derived from the prompt.
+            # Best-effort: a failure here must not block audio generation.
+            if not job.title and suggest.model_files_present():
+                try:
+                    title = suggest.make_title(job.prompt)
+                    if title:
+                        with JOBS_LOCK:
+                            job.title = title
+                        save_jobs()
+                except Exception:  # noqa: BLE001
+                    pass
 
             out_path = OUTPUT_DIR / f"{job.id}.wav"
             _, used_seed = engine.generate(
@@ -261,6 +275,21 @@ def create_job(req: GenerateRequest) -> dict:
     WORK_QUEUE.put(job.id)
     save_jobs()
     return job.to_dict()
+
+
+class SuggestRequest(BaseModel):
+    idea: str = Field(..., min_length=1)
+
+
+@app.post("/api/suggest")
+def suggest_prompt(req: SuggestRequest) -> dict:
+    if not suggest.model_files_present():
+        raise HTTPException(status_code=409, detail="suggestion model not available")
+    try:
+        text = suggest.suggest(req.idea)
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=500, detail=f"{type(exc).__name__}: {exc}")
+    return {"prompt": text}
 
 
 @app.get("/api/jobs")

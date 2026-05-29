@@ -49,7 +49,7 @@ const CopyIcon = () => (
   </svg>
 );
 
-export default function ResultCard({ job, onDelete, onCopyToForm }) {
+export default function ResultCard({ job, modelLabel, onDelete, onCopyToForm }) {
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const menuRef = useRef(null);
@@ -83,7 +83,7 @@ export default function ResultCard({ job, onDelete, onCopyToForm }) {
       <div className="row-main">
         <div className="row-title-line">
           <span className="row-title" title={job.prompt}>
-            {job.prompt}
+            {job.title || job.prompt}
           </span>
           {job.status !== "done" && (
             <span className={`badge badge-${job.status}`}>
@@ -92,11 +92,18 @@ export default function ResultCard({ job, onDelete, onCopyToForm }) {
           )}
         </div>
 
+        {job.title && (
+          <div className="row-prompt" title={job.prompt}>
+            {job.prompt}
+          </div>
+        )}
+
         <div className="row-desc">
           {fmtDur(job.seconds)} · {job.steps} steps · cfg {job.cfg_scale} · seed{" "}
           {job.seed}
           {elapsed && ` · ${elapsed}s`}
           {job.finished_at && ` · ${fmtTime(job.finished_at)}`}
+          {modelLabel && ` · ${modelLabel}`}
         </div>
 
         <div className="row-actions">

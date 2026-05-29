@@ -171,6 +171,9 @@ export default function App() {
                 <ResultCard
                   key={job.id}
                   job={job}
+                  modelLabel={
+                    models.find((m) => m.key === job.model)?.label || job.model
+                  }
                   onDelete={handleDelete}
                   onCopyToForm={handleCopyToForm}
                 />
