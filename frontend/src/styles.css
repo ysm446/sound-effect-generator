@@ -240,6 +240,27 @@ body {
   color: var(--text);
   font-family: inherit;
 }
+.seed-control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.dice-btn {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--panel-2);
+  color: var(--muted);
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+.dice-btn:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
 
 /* The slider track + circular thumb (Chromium / Electron) */
 .slider-field input[type="range"] {

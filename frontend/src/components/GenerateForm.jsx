@@ -131,12 +131,22 @@ export default function GenerateForm({ onSubmit, disabled, onWidthHint, applyVal
             <span className="slider-label" data-help="乱数シード。同じ値なら同じ音を再現できる。-1 でランダム">
               シード (-1=ランダム)
             </span>
-            <input
-              type="number"
-              className="slider-value-input"
-              value={form.seed}
-              onChange={update("seed")}
-            />
+            <div className="seed-control">
+              <button
+                type="button"
+                className="dice-btn"
+                title="ランダム (-1)"
+                onClick={() => setForm((f) => ({ ...f, seed: -1 }))}
+              >
+                <DiceIcon />
+              </button>
+              <input
+                type="number"
+                className="slider-value-input"
+                value={form.seed}
+                onChange={update("seed")}
+              />
+            </div>
           </div>
         </div>
       </div>
@@ -150,6 +160,17 @@ export default function GenerateForm({ onSubmit, disabled, onWidthHint, applyVal
     </form>
   );
 }
+
+const DiceIcon = () => (
+  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2">
+    <rect x="3" y="3" width="18" height="18" rx="4" />
+    <circle cx="8" cy="8" r="1.3" fill="currentColor" stroke="none" />
+    <circle cx="16" cy="8" r="1.3" fill="currentColor" stroke="none" />
+    <circle cx="12" cy="12" r="1.3" fill="currentColor" stroke="none" />
+    <circle cx="8" cy="16" r="1.3" fill="currentColor" stroke="none" />
+    <circle cx="16" cy="16" r="1.3" fill="currentColor" stroke="none" />
+  </svg>
+);
 
 // Label on the left, boxed value on the right, slider below.
 function SliderField({ label, help, display, value, ...inputProps }) {

@@ -106,7 +106,6 @@ export default function App() {
         </section>
 
         <section className="panel results-panel">
-          <h2>生成結果 ({jobs.length})</h2>
           {jobs.length === 0 ? (
             <p className="empty">まだ生成タスクがありません。左で条件を設定して「生成キューに追加」してください。</p>
           ) : (
