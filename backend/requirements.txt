@@ -1,0 +1,20 @@
+# PyTorch (CUDA 12.8 build for Blackwell GPUs) is installed separately:
+#   pip install torch==2.7.1 torchaudio==2.7.1 --index-url https://download.pytorch.org/whl/cu128
+torch==2.7.1
+torchaudio==2.7.1
+
+# Stable Audio inference
+stable-audio-tools==0.0.20
+
+# stable-audio-tools pins PyWavelets==1.4.1 (NumPy 1.x ABI) and imports
+# pytorch_lightning unconditionally. Override/add these for NumPy 2.x:
+PyWavelets>=1.7
+pytorch_lightning
+
+# WAV writing (torchaudio has no save backend on Windows)
+soundfile>=0.13
+
+# API server
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+python-multipart==0.0.20

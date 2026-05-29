@@ -1,0 +1,23 @@
+# Python embedded runtime & venv (large, machine-specific)
+runtime/
+.venv/
+__pycache__/
+*.pyc
+
+# Model weights (huge; downloaded separately)
+models/
+
+# Generated audio
+data/
+
+# Node / Electron
+node_modules/
+frontend/node_modules/
+frontend/dist/
+frontend/dist-electron/
+dist/
+
+# Misc
+.DS_Store
+*.log
+.vite/
