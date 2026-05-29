@@ -57,6 +57,8 @@ async function createWindow() {
   win = new BrowserWindow({
     width: 1600,
     height: 900,
+    // width/height refer to the web content area, excluding the title bar/frame.
+    useContentSize: true,
     backgroundColor: "#0f1115",
     title: "Sound Effect Generator",
     webPreferences: {

@@ -63,8 +63,6 @@ export default function App() {
   };
 
   const modelReady = health?.model_ready;
-  const queued = jobs.filter((j) => j.status === "queued").length;
-  const running = jobs.filter((j) => j.status === "running").length;
 
   return (
     <div className="app">
@@ -77,7 +75,7 @@ export default function App() {
           <StatusDot ok={!!health} />
           <span>
             {health
-              ? `デバイス: ${health.device ?? "未ロード"} · キュー ${queued} / 実行中 ${running}`
+              ? `デバイス: ${health.device ?? "未ロード"}`
               : "バックエンド停止中"}
           </span>
         </div>

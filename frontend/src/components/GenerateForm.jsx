@@ -8,16 +8,6 @@ const DEFAULTS = {
   seed: -1,
 };
 
-// A few quick-start prompt ideas for sound effects.
-const PRESETS = [
-  "Heavy wooden door creaking open slowly",
-  "Sci-fi laser gun shot with reverb",
-  "Footsteps on gravel, walking pace",
-  "Glass shattering on a tile floor",
-  "Retro 8-bit coin pickup jingle",
-  "Thunder rumble with distant rain",
-];
-
 export default function GenerateForm({ onSubmit, disabled, onWidthHint, applyValues }) {
   const [form, setForm] = useState(DEFAULTS);
   const taRef = useRef(null);
@@ -80,19 +70,6 @@ export default function GenerateForm({ onSubmit, disabled, onWidthHint, applyVal
           required
         />
       </label>
-
-      <div className="presets">
-        {PRESETS.map((p) => (
-          <button
-            type="button"
-            key={p}
-            className="chip"
-            onClick={() => setForm((f) => ({ ...f, prompt: p }))}
-          >
-            {p}
-          </button>
-        ))}
-      </div>
 
       <div className="settings-group">
         <SliderField
