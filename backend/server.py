@@ -2,11 +2,14 @@
 
 Exposes a small HTTP API the Electron front-end talks to. Generation requests
 are placed on an in-process queue and handled by a single background worker
-(one job at a time, matching the single GPU). Job state is kept in memory and
-the resulting WAV files are written to ``outputs/``.
+(one job at a time, matching the single GPU). Job metadata is persisted to
+``data/jobs.json`` (and restored on startup) so the result list survives app
+restarts; the WAV files live next to it in ``data/``.
 """
 from __future__ import annotations
 
+import json
+import os
 import queue
 import threading
 import time
@@ -54,6 +57,52 @@ JOBS: dict[str, Job] = {}
 JOBS_LOCK = threading.Lock()
 WORK_QUEUE: "queue.Queue[str]" = queue.Queue()
 
+# Persistence: job metadata is stored alongside the WAV files so the result
+# list survives app restarts.
+JOBS_FILE = OUTPUT_DIR / "jobs.json"
+_SAVE_LOCK = threading.Lock()
+
+
+def save_jobs() -> None:
+    """Atomically write all jobs to disk. Call outside JOBS_LOCK."""
+    with JOBS_LOCK:
+        data = [j.to_dict() for j in JOBS.values()]
+    with _SAVE_LOCK:
+        tmp = JOBS_FILE.with_suffix(".json.tmp")
+        tmp.write_text(
+            json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+        os.replace(tmp, JOBS_FILE)
+
+
+def load_jobs() -> None:
+    """Restore jobs from disk on startup."""
+    if not JOBS_FILE.exists():
+        return
+    try:
+        data = json.loads(JOBS_FILE.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return
+    fields = Job.__dataclass_fields__
+    for d in data:
+        try:
+            job = Job(**{k: d.get(k) for k in fields})
+        except TypeError:
+            continue
+        # Jobs that were mid-flight when the app closed can't be resumed.
+        if job.status in ("queued", "running"):
+            job.status = "error"
+            job.message = "アプリ終了により中断されました"
+        # Drop completed jobs whose audio file is gone.
+        if job.status == "done" and (
+            not job.filename or not (OUTPUT_DIR / job.filename).exists()
+        ):
+            continue
+        JOBS[job.id] = job
+
+
+load_jobs()
+
 
 def _worker() -> None:
     """Background thread: pull job ids and run generation sequentially."""
@@ -68,13 +117,14 @@ def _worker() -> None:
                 job.status = "running"
                 job.started_at = time.time()
                 job.message = "Starting..."
+            save_jobs()
 
             def progress(msg: str, _job=job) -> None:
                 with JOBS_LOCK:
                     _job.message = msg
 
             out_path = OUTPUT_DIR / f"{job.id}.wav"
-            engine.generate(
+            _, used_seed = engine.generate(
                 prompt=job.prompt,
                 seconds=job.seconds,
                 steps=job.steps,
@@ -87,6 +137,7 @@ def _worker() -> None:
             with JOBS_LOCK:
                 job.status = "done"
                 job.filename = out_path.name
+                job.seed = used_seed  # record the actual seed (resolves -1)
                 job.finished_at = time.time()
                 job.message = "Completed"
         except Exception as exc:  # noqa: BLE001 - surface any failure to the UI
@@ -95,6 +146,7 @@ def _worker() -> None:
                 job.message = f"{type(exc).__name__}: {exc}"
                 job.finished_at = time.time()
         finally:
+            save_jobs()
             WORK_QUEUE.task_done()
 
 
@@ -156,6 +208,7 @@ def create_job(req: GenerateRequest) -> dict:
     with JOBS_LOCK:
         JOBS[job.id] = job
     WORK_QUEUE.put(job.id)
+    save_jobs()
     return job.to_dict()
 
 
@@ -180,10 +233,16 @@ def delete_job(job_id: str) -> dict:
         job = JOBS.pop(job_id, None)
     if job is None:
         raise HTTPException(status_code=404, detail="job not found")
-    if job.filename:
-        f = OUTPUT_DIR / job.filename
+    # Remove the WAV from data/. Try the recorded filename and the conventional
+    # "<id>.wav" so the audio file never lingers after a card is deleted.
+    candidates = {job.filename, f"{job_id}.wav"}
+    for name in candidates:
+        if not name:
+            continue
+        f = OUTPUT_DIR / name
         if f.exists():
             f.unlink()
+    save_jobs()
     return {"deleted": job_id}
 
 

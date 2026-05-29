@@ -144,10 +144,11 @@ def generate(
     seed: int = -1,
     out_path: Optional[Path] = None,
     progress: Optional[Callable[[str], None]] = None,
-) -> Path:
+) -> tuple[Path, int]:
     """Generate audio for ``prompt`` and write a WAV file to ``out_path``.
 
-    Returns the path to the written WAV file. Thread-safe: serialized by a lock
+    Returns ``(path, seed)`` where ``seed`` is the actual seed used (a real
+    value even when -1/random was requested). Thread-safe: serialized by a lock
     so concurrent jobs run one at a time on the GPU.
     """
     import torch
@@ -228,4 +229,4 @@ def generate(
 
         if progress:
             progress(f"Done in {elapsed:.1f}s -> {out_path.name}")
-        return out_path
+        return out_path, int(seed)

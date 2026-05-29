@@ -1,8 +1,7 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 
 const DEFAULTS = {
   prompt: "",
-  negative_prompt: "",
   seconds: 8,
   steps: 8,
   cfg_scale: 1.0,
@@ -19,8 +18,21 @@ const PRESETS = [
   "Thunder rumble with distant rain",
 ];
 
-export default function GenerateForm({ onSubmit, disabled }) {
+export default function GenerateForm({ onSubmit, disabled, onWidthHint }) {
   const [form, setForm] = useState(DEFAULTS);
+  const taRef = useRef(null);
+
+  // Auto-grow the prompt box to fit its content, and ask the parent to widen
+  // the sidebar as the number of (wrapped) lines increases.
+  useEffect(() => {
+    const ta = taRef.current;
+    if (!ta) return;
+    ta.style.height = "auto";
+    ta.style.height = `${ta.scrollHeight}px`;
+    const rows = Math.round(ta.scrollHeight / 22);
+    const width = Math.min(560, Math.max(380, 380 + (rows - 3) * 26));
+    onWidthHint?.(width);
+  }, [form.prompt, onWidthHint]);
 
   const update = (key) => (e) => {
     const value =
@@ -35,7 +47,6 @@ export default function GenerateForm({ onSubmit, disabled }) {
     if (!form.prompt.trim()) return;
     onSubmit({
       prompt: form.prompt.trim(),
-      negative_prompt: form.negative_prompt.trim() || null,
       seconds: form.seconds,
       steps: form.steps,
       cfg_scale: form.cfg_scale,
@@ -48,6 +59,7 @@ export default function GenerateForm({ onSubmit, disabled }) {
       <label>
         プロンプト（英語推奨）
         <textarea
+          ref={taRef}
           rows={3}
           value={form.prompt}
           onChange={update("prompt")}
@@ -69,61 +81,44 @@ export default function GenerateForm({ onSubmit, disabled }) {
         ))}
       </div>
 
-      <label>
-        ネガティブプロンプト（任意）
-        <input
-          type="text"
-          value={form.negative_prompt}
-          onChange={update("negative_prompt")}
-          placeholder="e.g. music, voice"
-        />
-      </label>
+      <SliderField
+        label="長さ"
+        display={`${form.seconds}s`}
+        min={1}
+        max={30}
+        step={1}
+        value={form.seconds}
+        onChange={update("seconds")}
+      />
+      <SliderField
+        label="ステップ数"
+        display={form.steps}
+        min={4}
+        max={50}
+        step={1}
+        value={form.steps}
+        onChange={update("steps")}
+      />
+      <SliderField
+        label="CFG"
+        display={form.cfg_scale.toFixed(1)}
+        min={0}
+        max={10}
+        step={0.5}
+        value={form.cfg_scale}
+        onChange={update("cfg_scale")}
+      />
 
-      <div className="row">
-        <label>
-          長さ: {form.seconds}s
-          <input
-            type="range"
-            min={1}
-            max={30}
-            step={1}
-            value={form.seconds}
-            onChange={update("seconds")}
-          />
-        </label>
-        <label>
-          ステップ数: {form.steps}
-          <input
-            type="range"
-            min={4}
-            max={50}
-            step={1}
-            value={form.steps}
-            onChange={update("steps")}
-          />
-        </label>
-      </div>
-
-      <div className="row">
-        <label>
-          CFG: {form.cfg_scale.toFixed(1)}
-          <input
-            type="range"
-            min={0}
-            max={10}
-            step={0.5}
-            value={form.cfg_scale}
-            onChange={update("cfg_scale")}
-          />
-        </label>
-        <label>
-          シード (-1=ランダム)
+      <div className="slider-field">
+        <div className="slider-head">
+          <span className="slider-label">シード (-1=ランダム)</span>
           <input
             type="number"
+            className="slider-value-input"
             value={form.seed}
             onChange={update("seed")}
           />
-        </label>
+        </div>
       </div>
 
       <button type="submit" className="primary" disabled={disabled}>
@@ -133,5 +128,18 @@ export default function GenerateForm({ onSubmit, disabled }) {
         <p className="hint">モデル未準備のため生成できません。</p>
       )}
     </form>
+  );
+}
+
+// Label on the left, boxed value on the right, slider below.
+function SliderField({ label, display, value, ...inputProps }) {
+  return (
+    <div className="slider-field">
+      <div className="slider-head">
+        <span className="slider-label">{label}</span>
+        <span className="slider-value">{display ?? value}</span>
+      </div>
+      <input type="range" value={value} {...inputProps} />
+    </div>
   );
 }

@@ -17,7 +17,7 @@ Electron (renderer/React)  --HTTP-->  FastAPI (backend/server.py)  -->  engine.p
 ```
 
 - フロントは `window.__API_BASE__`（preload で注入, 既定 `http://127.0.0.1:8765`）に対して `fetch`。IPC は使っていない。
-- 生成は `backend/server.py` 内の単一ワーカースレッド + `queue.Queue` で**1件ずつ順次処理**（GPU が1基のため）。ジョブ状態はメモリ保持、WAV は `data/<job_id>.wav`。
+- 生成は `backend/server.py` 内の単一ワーカースレッド + `queue.Queue` で**1件ずつ順次処理**（GPU が1基のため）。ジョブのメタデータは `data/jobs.json` に永続化し起動時に復元（`save_jobs()`/`load_jobs()`）、WAV は `data/<job_id>.wav`。起動時、前回中断（queued/running）だったジョブは error 扱いにし、WAV が消えた done ジョブは読み込まない。
 - フロントは 1.5 秒ごとに `/api/jobs` と `/api/health` をポーリングしてカードを更新。
 
 ## 重要な環境上の制約
@@ -77,6 +77,6 @@ cd frontend; npm run dev
 
 ## 注意点 / TODO 候補
 
-- ジョブ状態はメモリのみ。アプリ再起動で一覧は消える（WAV ファイルは残る）。永続化するなら SQLite/JSON に。
+- ジョブは `data/jobs.json` に永続化済み（再起動で復元）。さらに堅牢にするなら SQLite 化も可。
 - `generate_diffusion_cond_inpaint` を素の条件生成に流用している。挙動に問題があれば `generate_diffusion_cond` へ切替（engine.py 内で try/except 済み）。
 - 配布（electron-builder）時は `runtime/` `.venv/` `models/` を同梱するか別途 DL させるか要検討（巨大）。

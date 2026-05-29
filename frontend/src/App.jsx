@@ -7,6 +7,8 @@ export default function App() {
   const [health, setHealth] = useState(null);
   const [jobs, setJobs] = useState([]);
   const [error, setError] = useState(null);
+  // Sidebar width grows as the prompt gets longer (set by GenerateForm).
+  const [formWidth, setFormWidth] = useState(380);
 
   const refreshJobs = useCallback(async () => {
     try {
@@ -55,7 +57,7 @@ export default function App() {
     <div className="app">
       <header className="topbar">
         <div>
-          <h1>🔊 Sound Effect Generator</h1>
+          <h1>Sound Effect Generator</h1>
           <p className="subtitle">Stable Audio 3 Medium · ローカル生成</p>
         </div>
         <div className="status">
@@ -76,10 +78,17 @@ export default function App() {
       )}
       {error && <div className="banner error">{error}</div>}
 
-      <main className="layout">
+      <main
+        className="layout"
+        style={{ gridTemplateColumns: `${formWidth}px 1fr` }}
+      >
         <section className="panel form-panel">
           <h2>生成条件</h2>
-          <GenerateForm onSubmit={handleSubmit} disabled={!modelReady} />
+          <GenerateForm
+            onSubmit={handleSubmit}
+            disabled={!modelReady}
+            onWidthHint={setFormWidth}
+          />
         </section>
 
         <section className="panel results-panel">
@@ -87,7 +96,7 @@ export default function App() {
           {jobs.length === 0 ? (
             <p className="empty">まだ生成タスクがありません。左で条件を設定して「生成キューに追加」してください。</p>
           ) : (
-            <div className="card-grid">
+            <div className="card-list">
               {jobs.map((job) => (
                 <ResultCard key={job.id} job={job} onDelete={handleDelete} />
               ))}

@@ -12,7 +12,7 @@ def main():
         sys.exit(1)
 
     t0 = time.time()
-    out = engine.generate(
+    out, seed = engine.generate(
         prompt="Heavy wooden door creaking open slowly",
         seconds=5.0,
         steps=8,
@@ -20,7 +20,7 @@ def main():
         seed=42,
         progress=lambda m: print(f"[progress] {m}  (+{time.time()-t0:.1f}s)"),
     )
-    print("WROTE:", out, "exists:", out.exists(), "bytes:", out.stat().st_size)
+    print("WROTE:", out, "exists:", out.exists(), "bytes:", out.stat().st_size, "seed:", seed)
 
 
 if __name__ == "__main__":
