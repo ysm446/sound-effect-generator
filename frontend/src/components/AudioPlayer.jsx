@@ -46,6 +46,7 @@ export default function AudioPlayer({ src }) {
   const [playing, setPlaying] = useState(false);
   const [cur, setCur] = useState(0);
   const [dur, setDur] = useState(0);
+  const [vol, setVol] = useState(1);
   const [muted, setMuted] = useState(false);
   const [peaks, setPeaks] = useState(null);
 
@@ -182,6 +183,23 @@ export default function AudioPlayer({ src }) {
     setMuted(a.muted);
   };
 
+  const changeVol = (e) => {
+    const v = Number(e.target.value);
+    const a = audioRef.current;
+    setVol(v);
+    if (a) {
+      a.volume = v;
+      a.muted = v === 0;
+    }
+    setMuted(v === 0);
+  };
+
+  // Keep the <audio> element's volume in sync (e.g. on mount / src change).
+  useEffect(() => {
+    const a = audioRef.current;
+    if (a) a.volume = vol;
+  }, [vol, src]);
+
   return (
     <div className="audio-player">
       <audio ref={audioRef} src={src} preload="metadata" />
@@ -201,9 +219,21 @@ export default function AudioPlayer({ src }) {
         title="クリック/ドラッグでシーク"
       />
 
-      <button className="ap-vol" onClick={toggleMute} title={muted ? "ミュート解除" : "ミュート"}>
-        {muted ? <MuteIcon /> : <VolIcon />}
-      </button>
+      <div className="ap-volgroup">
+        <button className="ap-vol" onClick={toggleMute} title={muted ? "ミュート解除" : "ミュート"}>
+          {muted || vol === 0 ? <MuteIcon /> : <VolIcon />}
+        </button>
+        <input
+          className="ap-volslider"
+          type="range"
+          min="0"
+          max="1"
+          step="0.01"
+          value={muted ? 0 : vol}
+          onChange={changeVol}
+          title="音量"
+        />
+      </div>
     </div>
   );
 }

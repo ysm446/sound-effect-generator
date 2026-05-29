@@ -464,6 +464,30 @@ button.primary:disabled {
 .ap-vol:hover {
   color: var(--text);
 }
+.ap-volgroup {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.ap-volslider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 44px;
+  height: 3px;
+  border-radius: 999px;
+  background: #4b5360;
+  cursor: pointer;
+}
+.ap-volslider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: none;
+}
 .row-menu-wrap {
   position: relative;
   flex-shrink: 0;
