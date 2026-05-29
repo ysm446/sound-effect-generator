@@ -81,9 +81,11 @@ export default function ResultCard({ job, onDelete, onCopyToForm }) {
           <span className="row-title" title={job.prompt}>
             {job.prompt}
           </span>
-          <span className={`badge badge-${job.status}`}>
-            {STATUS_LABEL[job.status] ?? job.status}
-          </span>
+          {job.status !== "done" && (
+            <span className={`badge badge-${job.status}`}>
+              {STATUS_LABEL[job.status] ?? job.status}
+            </span>
+          )}
         </div>
 
         <div className="row-desc">
