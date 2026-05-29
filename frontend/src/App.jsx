@@ -9,6 +9,19 @@ export default function App() {
   const [error, setError] = useState(null);
   // Sidebar width grows as the prompt gets longer (set by GenerateForm).
   const [formWidth, setFormWidth] = useState(380);
+  // A request to load a card's settings back into the form.
+  const [copyRequest, setCopyRequest] = useState(null);
+
+  const handleCopyToForm = useCallback((job) => {
+    setCopyRequest({
+      prompt: job.prompt,
+      seconds: job.seconds,
+      steps: job.steps,
+      cfg_scale: job.cfg_scale,
+      seed: job.seed,
+      _ts: Date.now(), // ensure the effect re-runs even for identical values
+    });
+  }, []);
 
   const refreshJobs = useCallback(async () => {
     try {
@@ -88,6 +101,7 @@ export default function App() {
             onSubmit={handleSubmit}
             disabled={!modelReady}
             onWidthHint={setFormWidth}
+            applyValues={copyRequest}
           />
         </section>
 
@@ -98,7 +112,12 @@ export default function App() {
           ) : (
             <div className="card-list">
               {jobs.map((job) => (
-                <ResultCard key={job.id} job={job} onDelete={handleDelete} />
+                <ResultCard
+                  key={job.id}
+                  job={job}
+                  onDelete={handleDelete}
+                  onCopyToForm={handleCopyToForm}
+                />
               ))}
             </div>
           )}

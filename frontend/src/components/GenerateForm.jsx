@@ -18,9 +18,22 @@ const PRESETS = [
   "Thunder rumble with distant rain",
 ];
 
-export default function GenerateForm({ onSubmit, disabled, onWidthHint }) {
+export default function GenerateForm({ onSubmit, disabled, onWidthHint, applyValues }) {
   const [form, setForm] = useState(DEFAULTS);
   const taRef = useRef(null);
+
+  // Load a card's settings into the form (triggered from a result card menu).
+  useEffect(() => {
+    if (!applyValues) return;
+    setForm((f) => ({
+      ...f,
+      prompt: applyValues.prompt ?? f.prompt,
+      seconds: applyValues.seconds ?? f.seconds,
+      steps: applyValues.steps ?? f.steps,
+      cfg_scale: applyValues.cfg_scale ?? f.cfg_scale,
+      seed: applyValues.seed ?? f.seed,
+    }));
+  }, [applyValues]);
 
   // Auto-grow the prompt box to fit its content, and ask the parent to widen
   // the sidebar as the number of (wrapped) lines increases.
@@ -81,43 +94,50 @@ export default function GenerateForm({ onSubmit, disabled, onWidthHint }) {
         ))}
       </div>
 
-      <SliderField
-        label="長さ"
-        display={`${form.seconds}s`}
-        min={1}
-        max={30}
-        step={1}
-        value={form.seconds}
-        onChange={update("seconds")}
-      />
-      <SliderField
-        label="ステップ数"
-        display={form.steps}
-        min={4}
-        max={50}
-        step={1}
-        value={form.steps}
-        onChange={update("steps")}
-      />
-      <SliderField
-        label="CFG"
-        display={form.cfg_scale.toFixed(1)}
-        min={0}
-        max={10}
-        step={0.5}
-        value={form.cfg_scale}
-        onChange={update("cfg_scale")}
-      />
+      <div className="settings-group">
+        <SliderField
+          label="長さ"
+          help="生成する音の長さ（秒）"
+          display={`${form.seconds}s`}
+          min={1}
+          max={30}
+          step={1}
+          value={form.seconds}
+          onChange={update("seconds")}
+        />
+        <SliderField
+          label="ステップ数"
+          help="拡散のステップ数。多いほど高品質だが遅くなる（標準: 8）"
+          display={form.steps}
+          min={4}
+          max={50}
+          step={1}
+          value={form.steps}
+          onChange={update("steps")}
+        />
+        <SliderField
+          label="CFG"
+          help="プロンプトへの忠実度。高いほど指示に厳密になる（標準: 1.0）"
+          display={form.cfg_scale.toFixed(1)}
+          min={0}
+          max={10}
+          step={0.5}
+          value={form.cfg_scale}
+          onChange={update("cfg_scale")}
+        />
 
-      <div className="slider-field">
-        <div className="slider-head">
-          <span className="slider-label">シード (-1=ランダム)</span>
-          <input
-            type="number"
-            className="slider-value-input"
-            value={form.seed}
-            onChange={update("seed")}
-          />
+        <div className="slider-field">
+          <div className="slider-head">
+            <span className="slider-label" data-help="乱数シード。同じ値なら同じ音を再現できる。-1 でランダム">
+              シード (-1=ランダム)
+            </span>
+            <input
+              type="number"
+              className="slider-value-input"
+              value={form.seed}
+              onChange={update("seed")}
+            />
+          </div>
         </div>
       </div>
 
@@ -132,11 +152,13 @@ export default function GenerateForm({ onSubmit, disabled, onWidthHint }) {
 }
 
 // Label on the left, boxed value on the right, slider below.
-function SliderField({ label, display, value, ...inputProps }) {
+function SliderField({ label, help, display, value, ...inputProps }) {
   return (
     <div className="slider-field">
       <div className="slider-head">
-        <span className="slider-label">{label}</span>
+        <span className="slider-label" data-help={help}>
+          {label}
+        </span>
         <span className="slider-value">{display ?? value}</span>
       </div>
       <input type="range" value={value} {...inputProps} />
