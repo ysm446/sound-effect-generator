@@ -1,9 +1,10 @@
-"""Stable Audio 3 Medium inference engine.
+"""Stable Audio 3 inference engine (multi-model).
 
-Loads the locally-stored model (under ``models/stable-audio-3-medium``) and
-generates audio from a text prompt. The model is loaded lazily on first use and
-kept resident in GPU memory. Generation is guarded by a lock because a single
-GPU processes one request at a time.
+Loads one of the locally-stored Stable Audio 3 models (medium / small-sfx) and
+generates audio from a text prompt. All models share the same t5gemma text
+encoder, so only one copy of it is needed on disk. The selected model is loaded
+lazily on first use and kept resident in GPU memory; switching to another model
+frees the previous one. Generation is serialized by a lock (single GPU).
 """
 from __future__ import annotations
 
@@ -17,14 +18,26 @@ from typing import Callable, Optional
 
 # Project layout
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-MODEL_DIR = PROJECT_ROOT / "models" / "stable-audio-3-medium"
-MODEL_CONFIG_PATH = MODEL_DIR / "model_config.json"
-MODEL_WEIGHTS_PATH = MODEL_DIR / "model.safetensors"
-TEXT_ENCODER_DIR = MODEL_DIR / "t5gemma-b-b-ul2"
+MODELS_DIR = PROJECT_ROOT / "models"
+
+# Selectable models. All variants use the same t5gemma-b-b-ul2 text encoder,
+# which we share from whichever model directory has it (no need to duplicate).
+MODELS: dict[str, dict] = {
+    "stable-audio-3-medium": {
+        "label": "Medium（汎用 2B）",
+        "dir": MODELS_DIR / "stable-audio-3-medium",
+    },
+    "stable-audio-3-small-sfx": {
+        "label": "Small SFX（効果音特化 0.6B）",
+        "dir": MODELS_DIR / "stable-audio-3-small-sfx",
+    },
+}
+DEFAULT_MODEL = "stable-audio-3-medium"
 
 _lock = threading.Lock()
 _state = {
     "model": None,
+    "key": None,
     "config": None,
     "sample_rate": None,
     "sample_size": None,
@@ -42,31 +55,61 @@ def _select_device() -> str:
     return "cpu"
 
 
-def model_files_present() -> tuple[bool, list[str]]:
-    """Return (ok, missing_files) for a quick pre-flight check."""
+def _model_dir(key: str) -> Path:
+    return MODELS[key]["dir"]
+
+
+def _resolve_text_encoder(model_dir: Path) -> Path:
+    """Find a usable t5gemma-b-b-ul2 folder. Prefer the model's own subfolder,
+    otherwise reuse one from any sibling model (or a shared top-level folder),
+    so the encoder doesn't have to be downloaded/duplicated per model."""
+    candidates = [model_dir / "t5gemma-b-b-ul2"]
+    candidates += [m["dir"] / "t5gemma-b-b-ul2" for m in MODELS.values()]
+    candidates.append(MODELS_DIR / "t5gemma-b-b-ul2")
+    for c in candidates:
+        if (c / "config.json").exists():
+            return c
+    return model_dir / "t5gemma-b-b-ul2"
+
+
+def available_models() -> list[dict]:
+    """List registered models and whether each one's files are present."""
+    out = []
+    for key, info in MODELS.items():
+        ok, _ = model_files_present(key)
+        out.append({"key": key, "label": info["label"], "present": ok})
+    return out
+
+
+def model_files_present(key: str) -> tuple[bool, list[str]]:
+    """Return (ok, missing_files) for the given model key."""
+    if key not in MODELS:
+        return (False, [f"unknown model: {key}"])
+    mdir = _model_dir(key)
+    te = _resolve_text_encoder(mdir)
     required = {
-        "model_config.json": MODEL_CONFIG_PATH,
-        "model.safetensors": MODEL_WEIGHTS_PATH,
-        "t5gemma-b-b-ul2/config.json": TEXT_ENCODER_DIR / "config.json",
-        "t5gemma-b-b-ul2/model.safetensors": TEXT_ENCODER_DIR / "model.safetensors",
-        "t5gemma-b-b-ul2/tokenizer.json": TEXT_ENCODER_DIR / "tokenizer.json",
-        "t5gemma-b-b-ul2/tokenizer_config.json": TEXT_ENCODER_DIR / "tokenizer_config.json",
+        "model_config.json": mdir / "model_config.json",
+        "model.safetensors": mdir / "model.safetensors",
+        "t5gemma-b-b-ul2/config.json": te / "config.json",
+        "t5gemma-b-b-ul2/model.safetensors": te / "model.safetensors",
+        "t5gemma-b-b-ul2/tokenizer.json": te / "tokenizer.json",
+        "t5gemma-b-b-ul2/tokenizer_config.json": te / "tokenizer_config.json",
     }
     missing = [name for name, path in required.items() if not path.exists()]
     return (len(missing) == 0, missing)
 
 
-def _patch_text_encoder_paths(config: dict) -> dict:
-    """Point the t5gemma text-encoder conditioner at our local folder.
+def _patch_text_encoder_paths(config: dict, model_dir: Path) -> dict:
+    """Point the t5gemma text-encoder conditioner at our local (shared) folder.
 
     The stable-audio-3 ``model_config.json`` loads the text encoder from a
     gated Hugging Face repo via ``repo_id`` + ``subfolder``. The
     ``T5GemmaConditioner`` prefers a ``model_path`` over ``repo_id``, and calls
-    ``AutoTokenizer/AutoConfig/T5GemmaEncoderModel.from_pretrained(load_from,
-    subfolder=subfolder)``. We set ``model_path`` to the local encoder folder
-    and clear ``subfolder``/``repo_id`` so everything loads fully offline.
+    ``from_pretrained(load_from, subfolder=subfolder)``. We set ``model_path``
+    to the resolved local encoder folder and clear ``subfolder``/``repo_id`` so
+    everything loads fully offline.
     """
-    local = str(TEXT_ENCODER_DIR)
+    local = str(_resolve_text_encoder(model_dir))
     conditioning = config.get("model", {}).get("conditioning", {})
     for cond in conditioning.get("configs", []):
         if cond.get("type") == "t5gemma":
@@ -77,16 +120,35 @@ def _patch_text_encoder_paths(config: dict) -> dict:
     return config
 
 
-def load_model(progress: Optional[Callable[[str], None]] = None):
-    """Load (once) and return (model, config, sample_rate, sample_size, device)."""
-    if _state["model"] is not None:
+def _free_model() -> None:
+    """Release the currently loaded model from memory / VRAM."""
+    if _state["model"] is None:
+        return
+    _state["model"] = None
+    _state["key"] = None
+    gc.collect()
+    try:
+        import torch
+
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+    except Exception:
+        pass
+
+
+def load_model(key: str, progress: Optional[Callable[[str], None]] = None):
+    """Load (once) the requested model, swapping out any other loaded model."""
+    if _state["model"] is not None and _state["key"] == key:
         return _state
 
     def log(msg: str) -> None:
         if progress:
             progress(msg)
 
-    ok, missing = model_files_present()
+    if key not in MODELS:
+        raise ValueError(f"unknown model: {key}")
+
+    ok, missing = model_files_present(key)
     if not ok:
         raise FileNotFoundError(
             "Missing model files:\n  - " + "\n  - ".join(missing)
@@ -102,19 +164,25 @@ def load_model(progress: Optional[Callable[[str], None]] = None):
     import torch._dynamo
     torch._dynamo.config.suppress_errors = True
 
+    # Free any previously loaded (different) model before loading the new one.
+    if _state["model"] is not None:
+        log(f"Unloading {_state['key']} ...")
+        _free_model()
+
+    mdir = _model_dir(key)
     device = _select_device()
     log(f"Using device: {device}")
 
     log("Reading model_config.json ...")
-    with open(MODEL_CONFIG_PATH, "r", encoding="utf-8") as f:
+    with open(mdir / "model_config.json", "r", encoding="utf-8") as f:
         config = json.load(f)
-    config = _patch_text_encoder_paths(config)
+    config = _patch_text_encoder_paths(config, mdir)
 
     log("Building model from config ...")
     model = create_model_from_config(config)
 
     log("Loading weights (model.safetensors) ...")
-    state_dict = load_ckpt_state_dict(str(MODEL_WEIGHTS_PATH))
+    state_dict = load_ckpt_state_dict(str(mdir / "model.safetensors"))
     model.load_state_dict(state_dict, strict=False)
     del state_dict
     gc.collect()
@@ -126,6 +194,7 @@ def load_model(progress: Optional[Callable[[str], None]] = None):
 
     _state.update(
         model=model,
+        key=key,
         config=config,
         sample_rate=config["sample_rate"],
         sample_size=config["sample_size"],
@@ -144,6 +213,7 @@ def generate(
     seed: int = -1,
     out_path: Optional[Path] = None,
     progress: Optional[Callable[[str], None]] = None,
+    model_key: str = DEFAULT_MODEL,
 ) -> tuple[Path, int]:
     """Generate audio for ``prompt`` and write a WAV file to ``out_path``.
 
@@ -156,7 +226,7 @@ def generate(
     from einops import rearrange
 
     with _lock:
-        st = load_model(progress)
+        st = load_model(model_key, progress)
         model = st["model"]
         sample_rate = st["sample_rate"]
         sample_size = st["sample_size"]

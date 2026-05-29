@@ -6,7 +6,7 @@ import engine
 
 
 def main():
-    ok, missing = engine.model_files_present()
+    ok, missing = engine.model_files_present(engine.DEFAULT_MODEL)
     print("model_files_present:", ok, "missing:", missing)
     if not ok:
         sys.exit(1)

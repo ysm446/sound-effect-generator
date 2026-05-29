@@ -15,7 +15,8 @@
 - モデル配置：`models/stable-audio-3-medium/`（重み + config + t5gemma 一式）
 
 ### バックエンド（`backend/`）
-- `engine.py`：モデルの遅延ロード（1 回のみ）+ `generate()`、ローカル t5gemma を参照
+- **複数モデル対応**：medium / small-sfx を切替可能。選択は `data/config.json` に永続化し次回も使用。`engine.py` が要求モデルをロード（別モデルが載っていれば解放してから差し替え）。t5gemma は1つを共有（複製不要）。`/api/models` `/api/model`
+- `engine.py`：モデルの遅延ロード + `generate()`、ローカル（共有）t5gemma を参照
 - `server.py`：FastAPI、生成キュー（単一ワーカー）、`/api/generate` `/api/jobs` `/api/audio` `/api/health`
 - ジョブの永続化（`data/jobs.json`、起動時復元）
 - seed=-1（ランダム）時に実際の seed 値を記録・返却

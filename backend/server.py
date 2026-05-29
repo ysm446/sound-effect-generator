@@ -48,6 +48,7 @@ class Job:
     started_at: Optional[float] = None
     finished_at: Optional[float] = None
     filename: Optional[str] = None
+    model: Optional[str] = None  # which model produced/produces this job
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -104,6 +105,32 @@ def load_jobs() -> None:
 load_jobs()
 
 
+# ---------------------------------------------------------------------------
+# Selected model (persisted so it auto-loads next launch)
+# ---------------------------------------------------------------------------
+CONFIG_FILE = OUTPUT_DIR / "config.json"
+
+
+def load_selected_model() -> str:
+    key = engine.DEFAULT_MODEL
+    if CONFIG_FILE.exists():
+        try:
+            key = json.loads(CONFIG_FILE.read_text(encoding="utf-8")).get("model", key)
+        except (json.JSONDecodeError, OSError):
+            pass
+    return key if key in engine.MODELS else engine.DEFAULT_MODEL
+
+
+def save_selected_model(key: str) -> None:
+    with _SAVE_LOCK:
+        tmp = CONFIG_FILE.with_suffix(".json.tmp")
+        tmp.write_text(json.dumps({"model": key}, ensure_ascii=False, indent=2), encoding="utf-8")
+        os.replace(tmp, CONFIG_FILE)
+
+
+SELECTED_MODEL = load_selected_model()
+
+
 def _worker() -> None:
     """Background thread: pull job ids and run generation sequentially."""
     while True:
@@ -133,6 +160,7 @@ def _worker() -> None:
                 seed=job.seed,
                 out_path=out_path,
                 progress=progress,
+                model_key=job.model or SELECTED_MODEL,
             )
             with JOBS_LOCK:
                 job.status = "done"
@@ -177,20 +205,42 @@ class GenerateRequest(BaseModel):
 
 @app.get("/api/health")
 def health() -> dict:
-    ok, missing = engine.model_files_present()
+    ok, missing = engine.model_files_present(SELECTED_MODEL)
     return {
         "status": "ok",
         "model_ready": ok,
         "missing_files": missing,
         "queue_size": WORK_QUEUE.qsize(),
         "model_loaded": engine._state["model"] is not None,
+        "loaded_model": engine._state["key"],
         "device": engine._state["device"],
+        "selected_model": SELECTED_MODEL,
     }
+
+
+@app.get("/api/models")
+def list_models() -> dict:
+    return {"models": engine.available_models(), "selected": SELECTED_MODEL}
+
+
+class ModelRequest(BaseModel):
+    model: str
+
+
+@app.post("/api/model")
+def set_model(req: ModelRequest) -> dict:
+    global SELECTED_MODEL
+    if req.model not in engine.MODELS:
+        raise HTTPException(status_code=400, detail="unknown model")
+    SELECTED_MODEL = req.model
+    save_selected_model(SELECTED_MODEL)
+    ok, missing = engine.model_files_present(SELECTED_MODEL)
+    return {"selected": SELECTED_MODEL, "model_ready": ok, "missing_files": missing}
 
 
 @app.post("/api/generate")
 def create_job(req: GenerateRequest) -> dict:
-    ok, missing = engine.model_files_present()
+    ok, missing = engine.model_files_present(SELECTED_MODEL)
     if not ok:
         raise HTTPException(
             status_code=409,
@@ -204,6 +254,7 @@ def create_job(req: GenerateRequest) -> dict:
         cfg_scale=req.cfg_scale,
         negative_prompt=req.negative_prompt or None,
         seed=req.seed,
+        model=SELECTED_MODEL,
     )
     with JOBS_LOCK:
         JOBS[job.id] = job

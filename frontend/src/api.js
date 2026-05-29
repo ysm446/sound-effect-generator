@@ -27,6 +27,18 @@ export const api = {
     return fetch(`${API_BASE}/api/health`).then(jsonOrThrow);
   },
 
+  listModels() {
+    return fetch(`${API_BASE}/api/models`).then(jsonOrThrow);
+  },
+
+  setModel(model) {
+    return fetch(`${API_BASE}/api/model`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ model }),
+    }).then(jsonOrThrow);
+  },
+
   createJob(params) {
     return fetch(`${API_BASE}/api/generate`, {
       method: "POST",

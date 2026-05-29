@@ -11,6 +11,30 @@ export default function App() {
   const [formWidth, setFormWidth] = useState(380);
   // A request to load a card's settings back into the form.
   const [copyRequest, setCopyRequest] = useState(null);
+  // Available models + current selection.
+  const [models, setModels] = useState([]);
+  const [selectedModel, setSelectedModel] = useState(null);
+
+  const refreshModels = useCallback(async () => {
+    try {
+      const { models: list, selected } = await api.listModels();
+      setModels(list);
+      setSelectedModel(selected);
+    } catch {
+      /* backend down; ignore */
+    }
+  }, []);
+
+  const handleModelChange = async (key) => {
+    try {
+      await api.setModel(key);
+      setSelectedModel(key);
+      await refreshModels();
+      api.health().then(setHealth).catch(() => {});
+    } catch (e) {
+      setError(e.message);
+    }
+  };
 
   const handleCopyToForm = useCallback((job) => {
     setCopyRequest({
@@ -37,12 +61,13 @@ export default function App() {
   useEffect(() => {
     api.health().then(setHealth).catch(() => setHealth(null));
     refreshJobs();
+    refreshModels();
     const t = setInterval(() => {
       refreshJobs();
       api.health().then(setHealth).catch(() => {});
     }, 1500);
     return () => clearInterval(t);
-  }, [refreshJobs]);
+  }, [refreshJobs, refreshModels]);
 
   const handleSubmit = async (params) => {
     try {
@@ -69,9 +94,24 @@ export default function App() {
       <header className="topbar">
         <div>
           <h1>Sound Effect Generator</h1>
-          <p className="subtitle">Stable Audio 3 Medium · ローカル生成</p>
+          <p className="subtitle">Stable Audio 3 · ローカル生成</p>
         </div>
         <div className="status">
+          {models.length > 0 && (
+            <select
+              className="model-select"
+              value={selectedModel ?? ""}
+              onChange={(e) => handleModelChange(e.target.value)}
+              title="使用モデル"
+            >
+              {models.map((m) => (
+                <option key={m.key} value={m.key}>
+                  {m.label}
+                  {m.present ? "" : "（未DL）"}
+                </option>
+              ))}
+            </select>
+          )}
           <StatusDot ok={!!health} />
           <span>
             {health
