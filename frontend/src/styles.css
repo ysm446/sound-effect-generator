@@ -466,6 +466,25 @@ button.primary:disabled {
 .ap-vol:hover {
   color: var(--text);
 }
+.ap-loop {
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+}
+.ap-loop:hover {
+  color: var(--text);
+}
+.ap-loop.active {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+}
 .ap-volgroup {
   flex-shrink: 0;
   display: flex;

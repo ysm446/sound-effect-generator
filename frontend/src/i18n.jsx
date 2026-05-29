@@ -49,6 +49,7 @@ const STRINGS = {
     mute: "Mute",
     unmute: "Unmute",
     volume: "Volume",
+    loop: "Loop",
   },
   ja: {
     subtitle: "Stable Audio 3 · ローカル生成",
@@ -91,6 +92,7 @@ const STRINGS = {
     mute: "ミュート",
     unmute: "ミュート解除",
     volume: "音量",
+    loop: "ループ再生",
   },
 };
 

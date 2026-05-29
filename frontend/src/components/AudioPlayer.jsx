@@ -40,6 +40,14 @@ const MuteIcon = () => (
     <path d="M16 9l5 6M21 9l-5 6" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
   </svg>
 );
+const LoopIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" width="16" height="16">
+    <path d="M17 2l3 3-3 3" />
+    <path d="M4 11V9a4 4 0 0 1 4-4h12" />
+    <path d="M7 22l-3-3 3-3" />
+    <path d="M20 13v2a4 4 0 0 1-4 4H4" />
+  </svg>
+);
 
 export default function AudioPlayer({ src }) {
   const { t } = useI18n();
@@ -50,6 +58,7 @@ export default function AudioPlayer({ src }) {
   const [dur, setDur] = useState(0);
   const [vol, setVol] = useState(1);
   const [muted, setMuted] = useState(false);
+  const [loop, setLoop] = useState(false);
   const [peaks, setPeaks] = useState(null);
 
   // Decode the audio file once and reduce it to per-bar peak amplitudes.
@@ -202,6 +211,12 @@ export default function AudioPlayer({ src }) {
     if (a) a.volume = vol;
   }, [vol, src]);
 
+  // Native looping: when on, the "ended" event never fires so playback repeats.
+  useEffect(() => {
+    const a = audioRef.current;
+    if (a) a.loop = loop;
+  }, [loop, src]);
+
   return (
     <div className="audio-player">
       <audio ref={audioRef} src={src} preload="metadata" />
@@ -220,6 +235,15 @@ export default function AudioPlayer({ src }) {
         onMouseDown={onCanvasDown}
         title={t("seek")}
       />
+
+      <button
+        className={`ap-loop${loop ? " active" : ""}`}
+        onClick={() => setLoop((v) => !v)}
+        title={t("loop")}
+        aria-pressed={loop}
+      >
+        <LoopIcon />
+      </button>
 
       <div className="ap-volgroup">
         <button className="ap-vol" onClick={toggleMute} title={muted ? t("unmute") : t("mute")}>
