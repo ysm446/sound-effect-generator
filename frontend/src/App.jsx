@@ -112,21 +112,6 @@ export default function App() {
               </option>
             ))}
           </select>
-          {models.length > 0 && (
-            <select
-              className="model-select"
-              value={selectedModel ?? ""}
-              onChange={(e) => handleModelChange(e.target.value)}
-              title={t("model")}
-            >
-              {models.map((m) => (
-                <option key={m.key} value={m.key}>
-                  {m.label}
-                  {m.present ? "" : t("notDownloaded")}
-                </option>
-              ))}
-            </select>
-          )}
           <StatusDot ok={!!health} />
           <span>
             {health
@@ -154,6 +139,23 @@ export default function App() {
       >
         <section className="panel form-panel">
           <h2>{t("genSettings")}</h2>
+          {models.length > 0 && (
+            <label className="model-field">
+              {t("model")}
+              <select
+                className="model-select"
+                value={selectedModel ?? ""}
+                onChange={(e) => handleModelChange(e.target.value)}
+              >
+                {models.map((m) => (
+                  <option key={m.key} value={m.key}>
+                    {m.label}
+                    {m.present ? "" : t("notDownloaded")}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
           <GenerateForm
             onSubmit={handleSubmit}
             disabled={!modelReady}

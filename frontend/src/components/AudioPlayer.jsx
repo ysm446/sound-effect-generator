@@ -131,13 +131,17 @@ export default function AudioPlayer({ src }) {
     const unplayed = "#4b5360";
 
     const n = peaks ? peaks.length : BARS;
-    const gap = 1.5;
-    const barW = Math.max(1, (w - gap * (n - 1)) / n);
+    // Give every bar an equal slice of the full width so the bars always span
+    // exactly [0, w]. This keeps the played/unplayed boundary aligned with the
+    // click position (clickX / w), regardless of how narrow the player is.
+    const step = w / n;
+    const gap = Math.min(1.5, step * 0.35);
+    const barW = Math.max(1, step - gap);
     const progress = dur ? cur / dur : 0;
     for (let i = 0; i < n; i++) {
       const amp = peaks ? peaks[i] : 0.06;
       const bh = Math.max(2, amp * (h - 2));
-      const x = i * (barW + gap);
+      const x = i * step;
       const y = (h - bh) / 2;
       ctx.fillStyle = i / n < progress ? played : unplayed;
       ctx.fillRect(x, y, barW, bh);
