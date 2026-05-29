@@ -24,12 +24,16 @@ MODELS_DIR = PROJECT_ROOT / "models"
 # which we share from whichever model directory has it (no need to duplicate).
 MODELS: dict[str, dict] = {
     "stable-audio-3-medium": {
-        "label": "Medium（汎用 2B）",
+        "label": "Medium (general, 2B)",
         "dir": MODELS_DIR / "stable-audio-3-medium",
     },
     "stable-audio-3-small-sfx": {
-        "label": "Small SFX（効果音特化 0.6B）",
+        "label": "Small SFX (sound-effects, 0.6B)",
         "dir": MODELS_DIR / "stable-audio-3-small-sfx",
+    },
+    "stable-audio-3-small-music": {
+        "label": "Small Music (music, 0.6B)",
+        "dir": MODELS_DIR / "stable-audio-3-small-music",
     },
 }
 DEFAULT_MODEL = "stable-audio-3-medium"

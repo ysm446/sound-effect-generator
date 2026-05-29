@@ -76,7 +76,8 @@ body {
   color: var(--muted);
   font-size: 13px;
 }
-.model-select {
+.model-select,
+.lang-select {
   background: var(--panel-2);
   color: var(--text);
   border: 1px solid var(--border);
@@ -86,7 +87,8 @@ body {
   font-family: inherit;
   cursor: pointer;
 }
-.model-select:focus {
+.model-select:focus,
+.lang-select:focus {
   outline: none;
   border-color: var(--accent);
 }

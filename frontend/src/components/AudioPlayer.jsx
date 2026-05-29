@@ -1,4 +1,5 @@
 import { useRef, useState, useEffect, useCallback } from "react";
+import { useI18n } from "../i18n.jsx";
 
 function fmt(t) {
   if (!isFinite(t) || t < 0) return "0:00";
@@ -41,6 +42,7 @@ const MuteIcon = () => (
 );
 
 export default function AudioPlayer({ src }) {
+  const { t } = useI18n();
   const audioRef = useRef(null);
   const canvasRef = useRef(null);
   const [playing, setPlaying] = useState(false);
@@ -204,7 +206,7 @@ export default function AudioPlayer({ src }) {
     <div className="audio-player">
       <audio ref={audioRef} src={src} preload="metadata" />
 
-      <button className="ap-play" onClick={toggle} title={playing ? "一時停止" : "再生"}>
+      <button className="ap-play" onClick={toggle} title={playing ? t("pause") : t("play")}>
         {playing ? <PauseIcon /> : <PlayIcon />}
       </button>
 
@@ -216,11 +218,11 @@ export default function AudioPlayer({ src }) {
         ref={canvasRef}
         className="ap-wave"
         onMouseDown={onCanvasDown}
-        title="クリック/ドラッグでシーク"
+        title={t("seek")}
       />
 
       <div className="ap-volgroup">
-        <button className="ap-vol" onClick={toggleMute} title={muted ? "ミュート解除" : "ミュート"}>
+        <button className="ap-vol" onClick={toggleMute} title={muted ? t("unmute") : t("mute")}>
           {muted || vol === 0 ? <MuteIcon /> : <VolIcon />}
         </button>
         <input
@@ -231,7 +233,7 @@ export default function AudioPlayer({ src }) {
           step="0.01"
           value={muted ? 0 : vol}
           onChange={changeVol}
-          title="音量"
+          title={t("volume")}
         />
       </div>
     </div>

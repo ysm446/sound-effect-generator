@@ -93,7 +93,7 @@ def load_jobs() -> None:
         # Jobs that were mid-flight when the app closed can't be resumed.
         if job.status in ("queued", "running"):
             job.status = "error"
-            job.message = "アプリ終了により中断されました"
+            job.message = "Interrupted by app shutdown"
         # Drop completed jobs whose audio file is gone.
         if job.status == "done" and (
             not job.filename or not (OUTPUT_DIR / job.filename).exists()

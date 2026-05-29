@@ -1,12 +1,13 @@
 import { useState, useRef, useEffect } from "react";
 import { api } from "../api.js";
 import AudioPlayer from "./AudioPlayer.jsx";
+import { useI18n } from "../i18n.jsx";
 
-const STATUS_LABEL = {
-  queued: "待機中",
-  running: "生成中",
-  done: "完了",
-  error: "エラー",
+const STATUS_KEY = {
+  queued: "statusQueued",
+  running: "statusRunning",
+  done: "statusDone",
+  error: "statusError",
 };
 
 function fmtDur(s) {
@@ -49,8 +50,11 @@ const CopyIcon = () => (
 );
 
 export default function ResultCard({ job, onDelete, onCopyToForm }) {
+  const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const menuRef = useRef(null);
+
+  const statusLabel = (s) => (STATUS_KEY[s] ? t(STATUS_KEY[s]) : s);
 
   const elapsed =
     job.finished_at && job.started_at
@@ -83,7 +87,7 @@ export default function ResultCard({ job, onDelete, onCopyToForm }) {
           </span>
           {job.status !== "done" && (
             <span className={`badge badge-${job.status}`}>
-              {STATUS_LABEL[job.status] ?? job.status}
+              {statusLabel(job.status)}
             </span>
           )}
         </div>
@@ -99,7 +103,7 @@ export default function ResultCard({ job, onDelete, onCopyToForm }) {
           {(job.status === "queued" || job.status === "running") && (
             <div className="progress">
               <div className="spinner" />
-              <span>{job.message || STATUS_LABEL[job.status]}</span>
+              <span>{job.message || statusLabel(job.status)}</span>
             </div>
           )}
 
@@ -114,7 +118,7 @@ export default function ResultCard({ job, onDelete, onCopyToForm }) {
       <div className="row-menu-wrap" ref={menuRef}>
         <button
           className="row-menu"
-          title="メニュー"
+          title={t("menu")}
           onClick={() => setOpen((o) => !o)}
         >
           <DotsIcon />
@@ -130,7 +134,7 @@ export default function ResultCard({ job, onDelete, onCopyToForm }) {
               }}
             >
               <CopyIcon />
-              フォームにコピー
+              {t("copyToForm")}
             </button>
             {canDownload && (
               <a
@@ -140,7 +144,7 @@ export default function ResultCard({ job, onDelete, onCopyToForm }) {
                 onClick={() => setOpen(false)}
               >
                 <DownloadIcon />
-                ダウンロード
+                {t("download")}
               </a>
             )}
             <button
@@ -151,7 +155,7 @@ export default function ResultCard({ job, onDelete, onCopyToForm }) {
               }}
             >
               <TrashIcon />
-              削除
+              {t("delete")}
             </button>
           </div>
         )}

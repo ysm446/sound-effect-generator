@@ -2,8 +2,10 @@ import { useEffect, useState, useCallback } from "react";
 import { api } from "./api.js";
 import GenerateForm from "./components/GenerateForm.jsx";
 import ResultCard from "./components/ResultCard.jsx";
+import { useI18n, LANGS } from "./i18n.jsx";
 
 export default function App() {
+  const { t, lang, setLang } = useI18n();
   const [health, setHealth] = useState(null);
   const [jobs, setJobs] = useState([]);
   const [error, setError] = useState(null);
@@ -53,7 +55,8 @@ export default function App() {
       setJobs(list);
       setError(null);
     } catch (e) {
-      setError("バックエンドに接続できません。サーバーが起動しているか確認してください。");
+      // Stored as a key so it follows the current language at render time.
+      setError("connectError");
     }
   }, []);
 
@@ -62,11 +65,11 @@ export default function App() {
     api.health().then(setHealth).catch(() => setHealth(null));
     refreshJobs();
     refreshModels();
-    const t = setInterval(() => {
+    const timer = setInterval(() => {
       refreshJobs();
       api.health().then(setHealth).catch(() => {});
     }, 1500);
-    return () => clearInterval(t);
+    return () => clearInterval(timer);
   }, [refreshJobs, refreshModels]);
 
   const handleSubmit = async (params) => {
@@ -94,20 +97,32 @@ export default function App() {
       <header className="topbar">
         <div>
           <h1>Sound Effect Generator</h1>
-          <p className="subtitle">Stable Audio 3 · ローカル生成</p>
+          <p className="subtitle">{t("subtitle")}</p>
         </div>
         <div className="status">
+          <select
+            className="lang-select"
+            value={lang}
+            onChange={(e) => setLang(e.target.value)}
+            title={t("language")}
+          >
+            {LANGS.map((l) => (
+              <option key={l.code} value={l.code}>
+                {l.label}
+              </option>
+            ))}
+          </select>
           {models.length > 0 && (
             <select
               className="model-select"
               value={selectedModel ?? ""}
               onChange={(e) => handleModelChange(e.target.value)}
-              title="使用モデル"
+              title={t("model")}
             >
               {models.map((m) => (
                 <option key={m.key} value={m.key}>
                   {m.label}
-                  {m.present ? "" : "（未DL）"}
+                  {m.present ? "" : t("notDownloaded")}
                 </option>
               ))}
             </select>
@@ -115,26 +130,30 @@ export default function App() {
           <StatusDot ok={!!health} />
           <span>
             {health
-              ? `デバイス: ${health.device ?? "未ロード"}`
-              : "バックエンド停止中"}
+              ? `${t("device")}: ${health.device ?? t("notLoaded")}`
+              : t("backendOffline")}
           </span>
         </div>
       </header>
 
       {health && !modelReady && (
         <div className="banner warn">
-          ⚠️ モデルファイルが不足しています:{" "}
+          ⚠️ {t("missingFiles")}{" "}
           {health.missing_files?.join(", ")}
         </div>
       )}
-      {error && <div className="banner error">{error}</div>}
+      {error && (
+        <div className="banner error">
+          {error === "connectError" ? t("connectError") : error}
+        </div>
+      )}
 
       <main
         className="layout"
         style={{ gridTemplateColumns: `${formWidth}px 1fr` }}
       >
         <section className="panel form-panel">
-          <h2>生成条件</h2>
+          <h2>{t("genSettings")}</h2>
           <GenerateForm
             onSubmit={handleSubmit}
             disabled={!modelReady}
@@ -145,7 +164,7 @@ export default function App() {
 
         <section className="panel results-panel">
           {jobs.length === 0 ? (
-            <p className="empty">まだ生成タスクがありません。左で条件を設定して「生成キューに追加」してください。</p>
+            <p className="empty">{t("empty")}</p>
           ) : (
             <div className="card-list">
               {jobs.map((job) => (

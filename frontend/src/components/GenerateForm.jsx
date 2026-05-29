@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { useI18n } from "../i18n.jsx";
 
 const DEFAULTS = {
   prompt: "",
@@ -9,6 +10,7 @@ const DEFAULTS = {
 };
 
 export default function GenerateForm({ onSubmit, disabled, onWidthHint, applyValues }) {
+  const { t } = useI18n();
   const [form, setForm] = useState(DEFAULTS);
   const taRef = useRef(null);
 
@@ -60,7 +62,7 @@ export default function GenerateForm({ onSubmit, disabled, onWidthHint, applyVal
   return (
     <form onSubmit={submit} className="gen-form">
       <label>
-        プロンプト（英語推奨）
+        {t("prompt")}
         <textarea
           ref={taRef}
           rows={3}
@@ -73,8 +75,8 @@ export default function GenerateForm({ onSubmit, disabled, onWidthHint, applyVal
 
       <div className="settings-group">
         <SliderField
-          label="長さ"
-          help="生成する音の長さ（秒）"
+          label={t("length")}
+          help={t("lengthHelp")}
           display={`${form.seconds}s`}
           min={1}
           max={30}
@@ -83,8 +85,8 @@ export default function GenerateForm({ onSubmit, disabled, onWidthHint, applyVal
           onChange={update("seconds")}
         />
         <SliderField
-          label="ステップ数"
-          help="拡散のステップ数。多いほど高品質だが遅くなる（標準: 8）"
+          label={t("steps")}
+          help={t("stepsHelp")}
           display={form.steps}
           min={4}
           max={50}
@@ -93,8 +95,8 @@ export default function GenerateForm({ onSubmit, disabled, onWidthHint, applyVal
           onChange={update("steps")}
         />
         <SliderField
-          label="CFG"
-          help="プロンプトへの忠実度。高いほど指示に厳密になる（標準: 1.0）"
+          label={t("cfg")}
+          help={t("cfgHelp")}
           display={form.cfg_scale.toFixed(1)}
           min={0}
           max={10}
@@ -105,14 +107,14 @@ export default function GenerateForm({ onSubmit, disabled, onWidthHint, applyVal
 
         <div className="slider-field">
           <div className="slider-head">
-            <span className="slider-label" data-help="乱数シード。同じ値なら同じ音を再現できる。-1 でランダム">
-              シード (-1=ランダム)
+            <span className="slider-label" data-help={t("seedHelp")}>
+              {t("seed")}
             </span>
             <div className="seed-control">
               <button
                 type="button"
                 className="dice-btn"
-                title="ランダム (-1)"
+                title={t("random")}
                 onClick={() => setForm((f) => ({ ...f, seed: -1 }))}
               >
                 <DiceIcon />
@@ -129,10 +131,10 @@ export default function GenerateForm({ onSubmit, disabled, onWidthHint, applyVal
       </div>
 
       <button type="submit" className="primary" disabled={disabled}>
-        ＋ 生成キューに追加
+        {t("addToQueue")}
       </button>
       {disabled && (
-        <p className="hint">モデル未準備のため生成できません。</p>
+        <p className="hint">{t("notReady")}</p>
       )}
     </form>
   );
