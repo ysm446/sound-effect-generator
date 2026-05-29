@@ -55,8 +55,8 @@ function waitForBackend(timeoutMs = 60000) {
 
 async function createWindow() {
   win = new BrowserWindow({
-    width: 1280,
-    height: 860,
+    width: 1600,
+    height: 900,
     backgroundColor: "#0f1115",
     title: "Sound Effect Generator",
     webPreferences: {

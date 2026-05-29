@@ -397,8 +397,8 @@ button.primary:disabled {
   align-items: center;
   gap: 10px;
   flex: 1;
-  min-width: 300px;
-  max-width: 420px;
+  min-width: 320px;
+  max-width: 480px;
   background: var(--panel-2);
   border: 1px solid var(--border);
   border-radius: 999px;
@@ -426,28 +426,12 @@ button.primary:disabled {
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
-.ap-seek {
-  -webkit-appearance: none;
-  appearance: none;
+.ap-wave {
   flex: 1;
-  height: 4px;
-  border-radius: 999px;
-  background: linear-gradient(
-    to right,
-    var(--accent) var(--pct, 0%),
-    var(--border) var(--pct, 0%)
-  );
+  min-width: 0;
+  height: 34px;
+  display: block;
   cursor: pointer;
-  outline: none;
-}
-.ap-seek::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  background: #ffffff;
-  border: none;
 }
 .ap-vol {
   flex-shrink: 0;
