@@ -197,6 +197,26 @@ worker_thread.start()
 
 
 # ---------------------------------------------------------------------------
+# On-demand engine load/unload (driven by the UI toggles)
+# ---------------------------------------------------------------------------
+# Loading a model takes several seconds, so the load/unload endpoints kick the
+# work off on a background thread and report progress via the ``loading`` flags
+# below; the front-end polls /api/health to see the resulting state.
+ENGINE_STATE_LOCK = threading.Lock()
+ENGINE_LOADING = {"audio": False, "llm": False}
+
+
+def _run_engine_task(name: str, fn) -> None:
+    try:
+        fn()
+    except Exception:  # noqa: BLE001 - a failed load just leaves it "off"
+        pass
+    finally:
+        with ENGINE_STATE_LOCK:
+            ENGINE_LOADING[name] = False
+
+
+# ---------------------------------------------------------------------------
 # API
 # ---------------------------------------------------------------------------
 app = FastAPI(title="Sound Effect Generator")
@@ -220,6 +240,9 @@ class GenerateRequest(BaseModel):
 @app.get("/api/health")
 def health() -> dict:
     ok, missing = engine.model_files_present(SELECTED_MODEL)
+    with ENGINE_STATE_LOCK:
+        audio_loading = ENGINE_LOADING["audio"]
+        llm_loading = ENGINE_LOADING["llm"]
     return {
         "status": "ok",
         "model_ready": ok,
@@ -229,6 +252,13 @@ def health() -> dict:
         "loaded_model": engine._state["key"],
         "device": engine._state["device"],
         "selected_model": SELECTED_MODEL,
+        # Per-engine state for the UI on/off toggles.
+        "audio_loaded": engine.is_loaded(),
+        "audio_loading": audio_loading,
+        "audio_present": ok,
+        "llm_loaded": suggest.is_loaded(),
+        "llm_loading": llm_loading,
+        "llm_present": suggest.model_files_present(),
     }
 
 
@@ -250,6 +280,37 @@ def set_model(req: ModelRequest) -> dict:
     save_selected_model(SELECTED_MODEL)
     ok, missing = engine.model_files_present(SELECTED_MODEL)
     return {"selected": SELECTED_MODEL, "model_ready": ok, "missing_files": missing}
+
+
+class EngineRequest(BaseModel):
+    action: str  # "load" | "unload"
+
+
+@app.post("/api/engine/{name}")
+def set_engine(name: str, req: EngineRequest) -> dict:
+    """Load or unload one of the resident models on demand ("audio" | "llm")."""
+    if name not in ("audio", "llm"):
+        raise HTTPException(status_code=404, detail="unknown engine")
+    if req.action not in ("load", "unload"):
+        raise HTTPException(status_code=400, detail="unknown action")
+
+    if req.action == "load":
+        with ENGINE_STATE_LOCK:
+            if ENGINE_LOADING[name]:
+                return {"ok": True, "loading": True}
+            ENGINE_LOADING[name] = True
+        fn = (
+            (lambda: engine.preload(SELECTED_MODEL))
+            if name == "audio"
+            else suggest.preload
+        )
+        threading.Thread(
+            target=_run_engine_task, args=(name, fn), daemon=True
+        ).start()
+    else:  # unload — run off-thread so a busy GPU lock doesn't block the request
+        fn = engine.unload if name == "audio" else suggest.unload
+        threading.Thread(target=fn, daemon=True).start()
+    return {"ok": True}
 
 
 @app.post("/api/generate")

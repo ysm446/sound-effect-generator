@@ -27,13 +27,13 @@ MODELS: dict[str, dict] = {
         "label": "Medium (general, 2B)",
         "dir": MODELS_DIR / "stable-audio-3-medium",
     },
-    "stable-audio-3-small-sfx": {
-        "label": "Small SFX (sound-effects, 0.6B)",
-        "dir": MODELS_DIR / "stable-audio-3-small-sfx",
-    },
     "stable-audio-3-small-music": {
         "label": "Small Music (music, 0.6B)",
         "dir": MODELS_DIR / "stable-audio-3-small-music",
+    },
+    "stable-audio-3-small-sfx": {
+        "label": "Small SFX (sound-effects, 0.6B)",
+        "dir": MODELS_DIR / "stable-audio-3-small-sfx",
     },
 }
 DEFAULT_MODEL = "stable-audio-3-medium"
@@ -140,6 +140,17 @@ def _free_model() -> None:
         pass
 
 
+def is_loaded() -> bool:
+    """True if a Stable Audio model is currently resident in memory."""
+    return _state["model"] is not None
+
+
+def unload() -> None:
+    """Free the currently loaded model (thread-safe)."""
+    with _lock:
+        _free_model()
+
+
 def load_model(key: str, progress: Optional[Callable[[str], None]] = None):
     """Load (once) the requested model, swapping out any other loaded model."""
     if _state["model"] is not None and _state["key"] == key:
@@ -206,6 +217,12 @@ def load_model(key: str, progress: Optional[Callable[[str], None]] = None):
     )
     log("Model ready.")
     return _state
+
+
+def preload(key: str, progress: Optional[Callable[[str], None]] = None):
+    """Eagerly load ``key`` into memory (thread-safe), e.g. from a UI toggle."""
+    with _lock:
+        return load_model(key, progress)
 
 
 def generate(

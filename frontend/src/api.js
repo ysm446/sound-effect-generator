@@ -39,6 +39,14 @@ export const api = {
     }).then(jsonOrThrow);
   },
 
+  setEngine(name, action) {
+    return fetch(`${API_BASE}/api/engine/${name}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action }),
+    }).then(jsonOrThrow);
+  },
+
   suggest(idea) {
     return fetch(`${API_BASE}/api/suggest`, {
       method: "POST",

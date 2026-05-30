@@ -87,6 +87,36 @@ def load(progress: Optional[Callable[[str], None]] = None):
     return _state
 
 
+def is_loaded() -> bool:
+    """True if the suggestion model is currently resident in memory."""
+    return _state["model"] is not None
+
+
+def preload(progress: Optional[Callable[[str], None]] = None):
+    """Eagerly load the model into memory (thread-safe), e.g. from a UI toggle."""
+    with _lock:
+        return load(progress)
+
+
+def unload() -> None:
+    """Free the model from memory / VRAM (thread-safe)."""
+    import gc
+
+    with _lock:
+        if _state["model"] is None:
+            return
+        _state["model"] = None
+        _state["tokenizer"] = None
+        gc.collect()
+        try:
+            import torch
+
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+        except Exception:
+            pass
+
+
 def _clean(text: str) -> str:
     """Take the first non-empty line and strip wrapping quotes/labels."""
     line = next((l.strip() for l in text.splitlines() if l.strip()), text.strip())

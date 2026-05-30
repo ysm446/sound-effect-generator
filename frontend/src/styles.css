@@ -103,6 +103,59 @@ body {
   outline: none;
   border-color: var(--accent);
 }
+/* On/off pill for a resident model (LLM / Stable Audio) */
+.engine-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 5px 12px;
+  font-size: 12.5px;
+  font-family: inherit;
+  color: var(--muted);
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+.engine-toggle:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--text);
+}
+.engine-toggle:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.engine-toggle.on {
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  background: color-mix(in srgb, var(--accent) 13%, transparent);
+}
+.engine-toggle .et-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #4b5360;
+  flex-shrink: 0;
+}
+.engine-toggle.on .et-dot {
+  background: var(--accent);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--accent) 80%, transparent);
+}
+.engine-toggle.loading .et-dot {
+  background: var(--warn);
+  animation: pulse 1s ease-in-out infinite;
+}
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.25;
+  }
+}
+
 .dot {
   width: 9px;
   height: 9px;

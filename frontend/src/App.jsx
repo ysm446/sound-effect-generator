@@ -38,6 +38,21 @@ export default function App() {
     }
   };
 
+  // Load/unload a resident model from the top-bar toggles. We flip health
+  // optimistically so the pill reacts immediately; the next poll reconciles.
+  const handleEngineToggle = useCallback(async (name, loaded) => {
+    const action = loaded ? "unload" : "load";
+    setHealth((h) =>
+      h ? { ...h, [`${name}_loading`]: action === "load" } : h
+    );
+    try {
+      await api.setEngine(name, action);
+      api.health().then(setHealth).catch(() => {});
+    } catch (e) {
+      setError(e.message);
+    }
+  }, []);
+
   const handleCopyToForm = useCallback((job) => {
     setCopyRequest({
       prompt: job.prompt,
@@ -112,12 +127,22 @@ export default function App() {
               </option>
             ))}
           </select>
-          <StatusDot ok={!!health} />
-          <span>
-            {health
-              ? `${t("device")}: ${health.device ?? t("notLoaded")}`
-              : t("backendOffline")}
-          </span>
+          <EngineToggle
+            label="LLM"
+            loaded={!!health?.llm_loaded}
+            loading={!!health?.llm_loading}
+            present={health?.llm_present ?? false}
+            online={!!health}
+            onToggle={() => handleEngineToggle("llm", health?.llm_loaded)}
+          />
+          <EngineToggle
+            label="Stable Audio"
+            loaded={!!health?.audio_loaded}
+            loading={!!health?.audio_loading}
+            present={health?.audio_present ?? false}
+            online={!!health}
+            onToggle={() => handleEngineToggle("audio", health?.audio_loaded)}
+          />
         </div>
       </header>
 
@@ -188,6 +213,32 @@ export default function App() {
   );
 }
 
-function StatusDot({ ok }) {
-  return <span className={`dot ${ok ? "dot-ok" : "dot-bad"}`} />;
+// A compact on/off pill for a resident model (LLM / Stable Audio). Green dot =
+// loaded, grey = off, pulsing amber = loading. Click toggles load/unload.
+function EngineToggle({ label, loaded, loading, present, online, onToggle }) {
+  const { t } = useI18n();
+  const disabled = !online || !present || loading;
+  const cls = loading ? "loading" : loaded ? "on" : "off";
+  const title = !online
+    ? t("backendOffline")
+    : !present
+    ? t("engineMissing")
+    : loading
+    ? t("engineLoading")
+    : loaded
+    ? t("engineUnloadHint")
+    : t("engineLoadHint");
+  return (
+    <button
+      type="button"
+      className={`engine-toggle ${cls}`}
+      onClick={onToggle}
+      disabled={disabled}
+      title={title}
+      aria-pressed={loaded}
+    >
+      <span className="et-dot" />
+      {label}
+    </button>
+  );
 }
