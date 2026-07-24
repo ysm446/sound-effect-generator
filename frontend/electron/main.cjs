@@ -2,6 +2,7 @@ const { app, BrowserWindow, Menu, shell } = require("electron");
 const { spawn } = require("node:child_process");
 const path = require("node:path");
 const http = require("node:http");
+const fs = require("node:fs");
 
 const isDev = process.env.NODE_ENV === "development";
 const PROJECT_ROOT = path.resolve(__dirname, "..", "..");
@@ -74,11 +75,39 @@ async function createWindow() {
     return { action: "deny" };
   });
 
+  // F12: capture the web content area (excludes the OS title bar/frame) and
+  // save it as a PNG under data/screenshot/. Handled in the main process so it
+  // works regardless of the renderer's focus/state.
+  win.webContents.on("before-input-event", (event, input) => {
+    if (input.type === "keyDown" && input.key === "F12") {
+      event.preventDefault();
+      captureScreenshot();
+    }
+  });
+
   if (isDev) {
     await win.loadURL("http://localhost:5173");
     win.webContents.openDevTools({ mode: "detach" });
   } else {
     await win.loadFile(path.join(PROJECT_ROOT, "frontend", "dist", "index.html"));
+  }
+}
+
+// Capture the current window content and write it to data/screenshot/ as a
+// timestamped PNG. Errors are logged but never surfaced to the user.
+async function captureScreenshot() {
+  if (!win) return;
+  try {
+    const image = await win.webContents.capturePage();
+    const dir = path.join(PROJECT_ROOT, "data", "screenshot");
+    fs.mkdirSync(dir, { recursive: true });
+    // Filesystem-safe timestamp: 2026-07-24T12-34-56-789Z
+    const ts = new Date().toISOString().replace(/[:.]/g, "-");
+    const file = path.join(dir, `screenshot-${ts}.png`);
+    fs.writeFileSync(file, image.toPNG());
+    console.log(`[screenshot] saved ${file}`);
+  } catch (e) {
+    console.error(`[screenshot] failed: ${e.message}`);
   }
 }
 
