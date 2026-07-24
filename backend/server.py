@@ -188,6 +188,15 @@ def _worker() -> None:
                 job.message = f"{type(exc).__name__}: {exc}"
                 job.finished_at = time.time()
         finally:
+            # If the card was deleted while this job was generating, delete()
+            # couldn't remove the not-yet-written WAV. Clean it up here so no
+            # orphaned audio lingers in data/.
+            with JOBS_LOCK:
+                removed = job.id not in JOBS
+            if removed:
+                f = OUTPUT_DIR / f"{job.id}.wav"
+                if f.exists():
+                    f.unlink()
             save_jobs()
             WORK_QUEUE.task_done()
 

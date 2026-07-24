@@ -16,9 +16,9 @@ function fmtDur(s) {
   return `${m}:${String(sec).padStart(2, "0")}`;
 }
 
-function fmtTime(t) {
+function fmtTime(t, lang) {
   if (!t) return "";
-  return new Date(t * 1000).toLocaleTimeString("ja-JP");
+  return new Date(t * 1000).toLocaleTimeString(lang === "ja" ? "ja-JP" : "en-US");
 }
 
 const DotsIcon = () => (
@@ -50,7 +50,7 @@ const CopyIcon = () => (
 );
 
 export default function ResultCard({ job, modelLabel, onDelete, onCopyToForm }) {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const [open, setOpen] = useState(false);
   const menuRef = useRef(null);
 
@@ -102,7 +102,7 @@ export default function ResultCard({ job, modelLabel, onDelete, onCopyToForm }) 
           {fmtDur(job.seconds)} · {job.steps} steps · cfg {job.cfg_scale} · seed{" "}
           {job.seed}
           {elapsed && ` · ${elapsed}s`}
-          {job.finished_at && ` · ${fmtTime(job.finished_at)}`}
+          {job.finished_at && ` · ${fmtTime(job.finished_at, lang)}`}
           {modelLabel && ` · ${modelLabel}`}
         </div>
 
