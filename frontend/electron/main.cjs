@@ -1,8 +1,9 @@
 const { app, BrowserWindow, Menu, shell, dialog, ipcMain } = require("electron");
-const { spawn } = require("node:child_process");
+const { spawn, exec } = require("node:child_process");
 const path = require("node:path");
 const http = require("node:http");
 const fs = require("node:fs");
+const os = require("node:os");
 
 const isDev = process.env.NODE_ENV === "development";
 const PROJECT_ROOT = path.resolve(__dirname, "..", "..");
@@ -133,6 +134,101 @@ async function captureScreenshot() {
   }
 }
 
+// ---------------------------------------------------------------------------
+// System resource monitor: CPU/RAM via node:os, GPU/VRAM via nvidia-smi.
+// Pushed to the renderer once a second over IPC — no HTTP, no extra
+// dependencies, and it keeps working even if the Python backend is down.
+// ---------------------------------------------------------------------------
+
+function sampleCpus() {
+  return os.cpus().map((cpu) => {
+    const times = cpu.times;
+    const total = Object.values(times).reduce((a, b) => a + b, 0);
+    return { idle: times.idle, total };
+  });
+}
+
+// os.cpus() reports cumulative times, so usage must come from the delta
+// between two samples.
+function computeCpuUsage(prev, curr) {
+  let totalDelta = 0;
+  let idleDelta = 0;
+  for (let i = 0; i < prev.length && i < curr.length; i++) {
+    totalDelta += curr[i].total - prev[i].total;
+    idleDelta += curr[i].idle - prev[i].idle;
+  }
+  return totalDelta === 0 ? 0 : (1 - idleDelta / totalDelta) * 100;
+}
+
+let cpuSample = sampleCpus();
+let cachedGpu = { gpuUsage: null, vramUsed: null, vramTotal: null };
+// null = unknown yet; false = nvidia-smi missing/broken, never query again.
+let nvidiaSmiAvailable = null;
+let gpuQueryInFlight = false;
+let resourcesInterval = null;
+
+function queryNvidiaSmi() {
+  return new Promise((resolve) => {
+    const empty = { gpuUsage: null, vramUsed: null, vramTotal: null };
+    const timeout = setTimeout(() => resolve(empty), 3000);
+    exec(
+      "nvidia-smi --query-gpu=utilization.gpu,memory.used,memory.total --format=csv,noheader,nounits",
+      { windowsHide: true },
+      (err, stdout) => {
+        clearTimeout(timeout);
+        if (err || !stdout) {
+          nvidiaSmiAvailable = false;
+          resolve(empty);
+          return;
+        }
+        const parts = stdout.trim().split("\n")[0].split(",").map((s) => parseFloat(s.trim()));
+        if (parts.length >= 3 && parts.every((n) => !isNaN(n))) {
+          nvidiaSmiAvailable = true;
+          resolve({ gpuUsage: parts[0], vramUsed: parts[1], vramTotal: parts[2] });
+        } else {
+          nvidiaSmiAvailable = false;
+          resolve(empty);
+        }
+      }
+    );
+  });
+}
+
+function startResourceMonitor() {
+  const refreshGpu = () => {
+    if (gpuQueryInFlight || nvidiaSmiAvailable === false) return;
+    gpuQueryInFlight = true;
+    queryNvidiaSmi().then((info) => {
+      cachedGpu = info;
+      gpuQueryInFlight = false;
+    });
+  };
+  refreshGpu();
+
+  resourcesInterval = setInterval(() => {
+    const prevSample = cpuSample;
+    const currSample = sampleCpus();
+    cpuSample = currSample;
+
+    const totalMem = os.totalmem();
+    const payload = {
+      cpuUsage: Math.round(computeCpuUsage(prevSample, currSample)),
+      ramUsed: totalMem - os.freemem(), // bytes
+      ramTotal: totalMem, // bytes
+      gpuUsage: cachedGpu.gpuUsage !== null ? Math.round(cachedGpu.gpuUsage) : null,
+      vramUsed: cachedGpu.vramUsed, // MiB
+      vramTotal: cachedGpu.vramTotal, // MiB
+    };
+    refreshGpu();
+
+    for (const w of BrowserWindow.getAllWindows()) {
+      if (!w.isDestroyed() && !w.webContents.isDestroyed()) {
+        w.webContents.send("system:resources", payload);
+      }
+    }
+  }, 1000);
+}
+
 // The renderer talks to the backend over HTTP, but a native folder picker and
 // "reveal in explorer" can only come from the main process, so these two go
 // through IPC (see preload.cjs).
@@ -158,6 +254,7 @@ app.whenReady().then(async () => {
   Menu.setApplicationMenu(null);
 
   registerIpc();
+  startResourceMonitor();
 
   startBackend();
   try {
@@ -173,6 +270,10 @@ app.whenReady().then(async () => {
 });
 
 function shutdown() {
+  if (resourcesInterval) {
+    clearInterval(resourcesInterval);
+    resourcesInterval = null;
+  }
   if (pyProc) {
     pyProc.kill();
     pyProc = null;

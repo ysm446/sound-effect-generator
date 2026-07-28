@@ -817,3 +817,42 @@ button.primary:disabled {
 .muted {
   color: var(--muted);
 }
+
+/* Bottom status bar (system resources) */
+.statusbar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 18px;
+  padding: 5px 22px;
+  border-top: 1px solid var(--border);
+  background: var(--panel);
+  flex-shrink: 0;
+}
+.resource {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.resource-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.resource-track {
+  width: 44px;
+  height: 3px;
+  border-radius: 999px;
+  background: var(--panel-2);
+  overflow: hidden;
+}
+.resource-fill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.5s ease-out, background-color 0.3s;
+}
+.resource-detail {
+  font-size: 10px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
