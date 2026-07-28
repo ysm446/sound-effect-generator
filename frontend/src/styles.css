@@ -87,7 +87,42 @@ body {
 .model-field .model-select {
   width: 100%;
 }
-/* Data folder row (where generated results are stored) */
+/* Data folder row (where generated results are stored), collapsible */
+.collapse-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 13px;
+  font-family: inherit;
+  color: var(--muted);
+  cursor: pointer;
+  text-align: left;
+}
+.collapse-head:hover {
+  color: var(--text);
+}
+.collapse-head .chevron {
+  display: inline-block;
+  font-size: 10px;
+  transition: transform 0.15s;
+}
+.collapse-head .chevron.open {
+  transform: rotate(90deg);
+}
+.collapse-preview {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: right;
+  font-size: 12px;
+  opacity: 0.75;
+}
 .data-dir-field .path-box {
   width: 100%;
   background: var(--panel-2);

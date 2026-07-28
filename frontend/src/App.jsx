@@ -245,11 +245,23 @@ export default function App() {
 // Shows where generated results are stored and lets the user point the app at
 // another folder (keeping data separate from the app itself). The native picker
 // comes from Electron; in a plain browser we fall back to typing a path.
+// Collapsed by default (it is a set-once setting) — the folder name stays
+// visible in the header so the current location is readable at a glance.
 function DataDirField({ info, onChange }) {
   const { t } = useI18n();
+  const [open, setOpen] = useState(
+    () => localStorage.getItem("dataDirOpen") === "1"
+  );
+
+  useEffect(() => {
+    localStorage.setItem("dataDirOpen", open ? "1" : "0");
+  }, [open]);
+
   if (!info) return null;
 
   const desktop = typeof window !== "undefined" ? window.__DESKTOP__ : null;
+  const folderName =
+    info.path.split(/[\\/]/).filter(Boolean).pop() || info.path;
 
   const pick = async () => {
     const picked = desktop
@@ -260,32 +272,55 @@ function DataDirField({ info, onChange }) {
 
   return (
     <div className="model-field data-dir-field">
-      <span title={t("dataDirHelp")}>{t("dataDir")}</span>
-      <input className="path-box" readOnly value={info.path} title={info.path} />
-      <div className="data-dir-actions">
-        <button type="button" className="mini-btn" onClick={pick}>
-          {t("browse")}
-        </button>
-        {desktop && (
-          <button
-            type="button"
-            className="mini-btn"
-            onClick={() => desktop.openPath(info.path)}
-          >
-            {t("openFolder")}
-          </button>
+      <button
+        type="button"
+        className="collapse-head"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        title={t("dataDirHelp")}
+      >
+        <span className={`chevron ${open ? "open" : ""}`}>▸</span>
+        <span>{t("dataDir")}</span>
+        {!open && (
+          <span className="collapse-preview" title={info.path}>
+            {folderName}
+          </span>
         )}
-        {!info.is_default && (
-          <button
-            type="button"
-            className="mini-btn"
-            onClick={() => onChange("")}
-            title={info.default}
-          >
-            {t("useDefault")}
-          </button>
-        )}
-      </div>
+      </button>
+      {open && (
+        <>
+          <input
+            className="path-box"
+            readOnly
+            value={info.path}
+            title={info.path}
+          />
+          <div className="data-dir-actions">
+            <button type="button" className="mini-btn" onClick={pick}>
+              {t("browse")}
+            </button>
+            {desktop && (
+              <button
+                type="button"
+                className="mini-btn"
+                onClick={() => desktop.openPath(info.path)}
+              >
+                {t("openFolder")}
+              </button>
+            )}
+            {!info.is_default && (
+              <button
+                type="button"
+                className="mini-btn"
+                onClick={() => onChange("")}
+                title={info.default}
+              >
+                {t("useDefault")}
+              </button>
+            )}
+          </div>
+        </>
+      )}
     </div>
   );
 }
