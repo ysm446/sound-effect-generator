@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Menu, shell } = require("electron");
+const { app, BrowserWindow, Menu, shell, dialog, ipcMain } = require("electron");
 const { spawn } = require("node:child_process");
 const path = require("node:path");
 const http = require("node:http");
@@ -93,13 +93,35 @@ async function createWindow() {
   }
 }
 
-// Capture the current window content and write it to data/screenshot/ as a
-// timestamped PNG. Errors are logged but never surfaced to the user.
+// Ask the backend where the data folder currently is (it is user-configurable);
+// null if the backend is unreachable.
+function fetchDataDir() {
+  const url = `http://${BACKEND_HOST}:${BACKEND_PORT}/api/datadir`;
+  return new Promise((resolve) => {
+    const req = http.get(url, (res) => {
+      let body = "";
+      res.setEncoding("utf8");
+      res.on("data", (c) => (body += c));
+      res.on("end", () => {
+        try {
+          resolve(JSON.parse(body).path || null);
+        } catch {
+          resolve(null);
+        }
+      });
+    });
+    req.on("error", () => resolve(null));
+  });
+}
+
+// Capture the current window content and write it to <data dir>/screenshot/ as
+// a timestamped PNG. Errors are logged but never surfaced to the user.
 async function captureScreenshot() {
   if (!win) return;
   try {
     const image = await win.webContents.capturePage();
-    const dir = path.join(PROJECT_ROOT, "data", "screenshot");
+    const base = (await fetchDataDir()) || path.join(PROJECT_ROOT, "data");
+    const dir = path.join(base, "screenshot");
     fs.mkdirSync(dir, { recursive: true });
     // Filesystem-safe timestamp: 2026-07-24T12-34-56-789Z
     const ts = new Date().toISOString().replace(/[:.]/g, "-");
@@ -111,9 +133,31 @@ async function captureScreenshot() {
   }
 }
 
+// The renderer talks to the backend over HTTP, but a native folder picker and
+// "reveal in explorer" can only come from the main process, so these two go
+// through IPC (see preload.cjs).
+function registerIpc() {
+  ipcMain.handle("dialog:pick-folder", async (_e, defaultPath) => {
+    const { canceled, filePaths } = await dialog.showOpenDialog(win, {
+      properties: ["openDirectory", "createDirectory"],
+      defaultPath: defaultPath || undefined,
+    });
+    return canceled || filePaths.length === 0 ? null : filePaths[0];
+  });
+
+  ipcMain.handle("shell:open-path", async (_e, target) => {
+    if (!target) return false;
+    const err = await shell.openPath(target);
+    if (err) console.error(`[shell] openPath failed: ${err}`);
+    return !err;
+  });
+}
+
 app.whenReady().then(async () => {
   // Remove the default application menu (File / Edit / View ...).
   Menu.setApplicationMenu(null);
+
+  registerIpc();
 
   startBackend();
   try {

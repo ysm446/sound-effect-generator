@@ -3,8 +3,13 @@
 Exposes a small HTTP API the Electron front-end talks to. Generation requests
 are placed on an in-process queue and handled by a single background worker
 (one job at a time, matching the single GPU). Job metadata is persisted to
-``data/jobs.json`` (and restored on startup) so the result list survives app
-restarts; the WAV files live next to it in ``data/``.
+``<data dir>/jobs.json`` (and restored on startup) so the result list survives
+app restarts; the WAV files live next to it in the same folder.
+
+The data folder is user-configurable (``/api/datadir``) so generated results can
+be kept away from the application itself; it defaults to ``data/`` in the
+project root. Where it points is an *app* setting, so it is stored in
+``app-config.json`` next to the code -- never inside the data folder.
 """
 from __future__ import annotations
 
@@ -27,8 +32,74 @@ import engine
 import suggest
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-OUTPUT_DIR = PROJECT_ROOT / "data"
-OUTPUT_DIR.mkdir(exist_ok=True)
+DEFAULT_OUTPUT_DIR = PROJECT_ROOT / "data"
+
+# ---------------------------------------------------------------------------
+# App settings (data folder, selected model)
+# ---------------------------------------------------------------------------
+# Kept next to the code rather than in the data folder: it records *where* that
+# folder is, so it has to be readable before the folder is known. The selected
+# model used to live in ``data/config.json``; that file is still read once as a
+# fallback so existing installs keep their choice.
+APP_CONFIG_FILE = PROJECT_ROOT / "app-config.json"
+LEGACY_CONFIG_FILE = DEFAULT_OUTPUT_DIR / "config.json"
+
+_SAVE_LOCK = threading.Lock()
+
+
+def _read_json(path: Path) -> dict:
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def load_app_config() -> dict:
+    if APP_CONFIG_FILE.exists():
+        return _read_json(APP_CONFIG_FILE)
+    return _read_json(LEGACY_CONFIG_FILE)  # migrate the old model setting
+
+
+APP_CONFIG = load_app_config()
+
+
+def save_app_config() -> None:
+    with _SAVE_LOCK:
+        tmp = APP_CONFIG_FILE.with_suffix(".json.tmp")
+        tmp.write_text(
+            json.dumps(APP_CONFIG, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+        os.replace(tmp, APP_CONFIG_FILE)
+
+
+def resolve_data_dir(raw: Optional[str]) -> Path:
+    """Turn a configured/requested path into an absolute data folder path."""
+    if not raw or not str(raw).strip():
+        return DEFAULT_OUTPUT_DIR
+    p = Path(str(raw).strip()).expanduser()
+    if not p.is_absolute():
+        p = PROJECT_ROOT / p
+    return Path(os.path.normpath(p))
+
+
+def _init_data_dir() -> Path:
+    """Use the configured folder, falling back to ``data/`` if unusable.
+
+    The configured folder can live on a drive that is not present right now, so
+    a failure here must not stop the server from starting.
+    """
+    configured = resolve_data_dir(APP_CONFIG.get("data_dir"))
+    try:
+        configured.mkdir(parents=True, exist_ok=True)
+        return configured
+    except OSError as exc:
+        print(f"[data] cannot use {configured} ({exc}); falling back to default")
+        DEFAULT_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+        return DEFAULT_OUTPUT_DIR
+
+
+OUTPUT_DIR = _init_data_dir()
 
 
 # ---------------------------------------------------------------------------
@@ -61,9 +132,10 @@ JOBS_LOCK = threading.Lock()
 WORK_QUEUE: "queue.Queue[str]" = queue.Queue()
 
 # Persistence: job metadata is stored alongside the WAV files so the result
-# list survives app restarts.
-JOBS_FILE = OUTPUT_DIR / "jobs.json"
-_SAVE_LOCK = threading.Lock()
+# list survives app restarts. Both follow the (switchable) data folder, hence
+# the function rather than a constant.
+def jobs_file() -> Path:
+    return OUTPUT_DIR / "jobs.json"
 
 
 def save_jobs() -> None:
@@ -71,21 +143,19 @@ def save_jobs() -> None:
     with JOBS_LOCK:
         data = [j.to_dict() for j in JOBS.values()]
     with _SAVE_LOCK:
-        tmp = JOBS_FILE.with_suffix(".json.tmp")
+        target = jobs_file()
+        tmp = target.with_suffix(".json.tmp")
         tmp.write_text(
             json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8"
         )
-        os.replace(tmp, JOBS_FILE)
+        os.replace(tmp, target)
 
 
 def load_jobs() -> None:
-    """Restore jobs from disk on startup."""
-    if not JOBS_FILE.exists():
-        return
-    try:
-        data = json.loads(JOBS_FILE.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
-        return
+    """Replace the in-memory job list with the one in the data folder."""
+    restored: dict[str, Job] = {}
+    src = jobs_file()
+    data = _read_list(src) if src.exists() else []
     fields = Job.__dataclass_fields__
     for d in data:
         try:
@@ -101,7 +171,18 @@ def load_jobs() -> None:
             not job.filename or not (OUTPUT_DIR / job.filename).exists()
         ):
             continue
-        JOBS[job.id] = job
+        restored[job.id] = job
+    with JOBS_LOCK:
+        JOBS.clear()
+        JOBS.update(restored)
+
+
+def _read_list(path: Path) -> list:
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return []
+    return data if isinstance(data, list) else []
 
 
 load_jobs()
@@ -110,24 +191,14 @@ load_jobs()
 # ---------------------------------------------------------------------------
 # Selected model (persisted so it auto-loads next launch)
 # ---------------------------------------------------------------------------
-CONFIG_FILE = OUTPUT_DIR / "config.json"
-
-
 def load_selected_model() -> str:
-    key = engine.DEFAULT_MODEL
-    if CONFIG_FILE.exists():
-        try:
-            key = json.loads(CONFIG_FILE.read_text(encoding="utf-8")).get("model", key)
-        except (json.JSONDecodeError, OSError):
-            pass
+    key = APP_CONFIG.get("model", engine.DEFAULT_MODEL)
     return key if key in engine.MODELS else engine.DEFAULT_MODEL
 
 
 def save_selected_model(key: str) -> None:
-    with _SAVE_LOCK:
-        tmp = CONFIG_FILE.with_suffix(".json.tmp")
-        tmp.write_text(json.dumps({"model": key}, ensure_ascii=False, indent=2), encoding="utf-8")
-        os.replace(tmp, CONFIG_FILE)
+    APP_CONFIG["model"] = key
+    save_app_config()
 
 
 SELECTED_MODEL = load_selected_model()
@@ -257,6 +328,7 @@ def health() -> dict:
         "model_ready": ok,
         "missing_files": missing,
         "queue_size": WORK_QUEUE.qsize(),
+        "data_dir": str(OUTPUT_DIR),
         "model_loaded": engine._state["model"] is not None,
         "loaded_model": engine._state["key"],
         "device": engine._state["device"],
@@ -269,6 +341,59 @@ def health() -> dict:
         "llm_loading": llm_loading,
         "llm_present": suggest.model_files_present(),
     }
+
+
+def _data_dir_state() -> dict:
+    return {
+        "path": str(OUTPUT_DIR),
+        "default": str(DEFAULT_OUTPUT_DIR),
+        "is_default": OUTPUT_DIR == DEFAULT_OUTPUT_DIR,
+    }
+
+
+@app.get("/api/datadir")
+def get_data_dir() -> dict:
+    return _data_dir_state()
+
+
+class DataDirRequest(BaseModel):
+    # Empty/None means "go back to the default data/ folder".
+    path: Optional[str] = None
+
+
+@app.post("/api/datadir")
+def set_data_dir(req: DataDirRequest) -> dict:
+    """Point the app at another data folder.
+
+    Nothing is moved or copied: the new folder is read as-is (its own
+    ``jobs.json`` + WAVs become the visible result list), and the old one is
+    left untouched.
+    """
+    global OUTPUT_DIR
+    new_dir = resolve_data_dir(req.path)
+    if new_dir == OUTPUT_DIR:
+        return _data_dir_state()
+
+    # Switching under a running/queued job would orphan its WAV in the old
+    # folder, so require an idle queue.
+    with JOBS_LOCK:
+        busy = any(j.status in ("queued", "running") for j in JOBS.values())
+    if busy:
+        raise HTTPException(status_code=409, detail="jobs_in_progress")
+
+    try:
+        new_dir.mkdir(parents=True, exist_ok=True)
+        probe = new_dir / ".write-test"
+        probe.write_text("", encoding="utf-8")
+        probe.unlink()
+    except OSError as exc:
+        raise HTTPException(status_code=400, detail=f"{type(exc).__name__}: {exc}")
+
+    OUTPUT_DIR = new_dir
+    APP_CONFIG["data_dir"] = "" if new_dir == DEFAULT_OUTPUT_DIR else str(new_dir)
+    save_app_config()
+    load_jobs()  # show whatever the new folder already holds
+    return _data_dir_state()
 
 
 @app.get("/api/models")

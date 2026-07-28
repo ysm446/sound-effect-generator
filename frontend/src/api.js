@@ -39,6 +39,19 @@ export const api = {
     }).then(jsonOrThrow);
   },
 
+  getDataDir() {
+    return fetch(`${API_BASE}/api/datadir`).then(jsonOrThrow);
+  },
+
+  // path = null/"" resets to the default data/ folder.
+  setDataDir(path) {
+    return fetch(`${API_BASE}/api/datadir`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path }),
+    }).then(jsonOrThrow);
+  },
+
   setEngine(name, action) {
     return fetch(`${API_BASE}/api/engine/${name}`, {
       method: "POST",

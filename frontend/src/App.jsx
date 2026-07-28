@@ -16,6 +16,8 @@ export default function App() {
   // Available models + current selection.
   const [models, setModels] = useState([]);
   const [selectedModel, setSelectedModel] = useState(null);
+  // Where generated results are stored ({path, default, is_default}).
+  const [dataDir, setDataDir] = useState(null);
 
   const refreshModels = useCallback(async () => {
     try {
@@ -75,17 +77,43 @@ export default function App() {
     }
   }, []);
 
+  const refreshDataDir = useCallback(async () => {
+    try {
+      setDataDir(await api.getDataDir());
+    } catch {
+      /* backend down; ignore */
+    }
+  }, []);
+
+  // Switch the data folder, then reload the result list from the new location.
+  const handleDataDirChange = useCallback(
+    async (path) => {
+      try {
+        setDataDir(await api.setDataDir(path));
+        setError(null);
+        await refreshJobs();
+      } catch (e) {
+        // Stored as a key so it follows the current language at render time.
+        setError(
+          e.message?.includes("jobs_in_progress") ? "dataDirBusy" : e.message
+        );
+      }
+    },
+    [refreshJobs]
+  );
+
   // Initial health check + polling loop for live job updates.
   useEffect(() => {
     api.health().then(setHealth).catch(() => setHealth(null));
     refreshJobs();
     refreshModels();
+    refreshDataDir();
     const timer = setInterval(() => {
       refreshJobs();
       api.health().then(setHealth).catch(() => {});
     }, 1500);
     return () => clearInterval(timer);
-  }, [refreshJobs, refreshModels]);
+  }, [refreshJobs, refreshModels, refreshDataDir]);
 
   const handleSubmit = async (params) => {
     try {
@@ -154,7 +182,7 @@ export default function App() {
       )}
       {error && (
         <div className="banner error">
-          {error === "connectError" ? t("connectError") : error}
+          {["connectError", "dataDirBusy"].includes(error) ? t(error) : error}
         </div>
       )}
 
@@ -181,6 +209,7 @@ export default function App() {
               </select>
             </label>
           )}
+          <DataDirField info={dataDir} onChange={handleDataDirChange} />
           <GenerateForm
             onSubmit={handleSubmit}
             disabled={!modelReady}
@@ -209,6 +238,54 @@ export default function App() {
           )}
         </section>
       </main>
+    </div>
+  );
+}
+
+// Shows where generated results are stored and lets the user point the app at
+// another folder (keeping data separate from the app itself). The native picker
+// comes from Electron; in a plain browser we fall back to typing a path.
+function DataDirField({ info, onChange }) {
+  const { t } = useI18n();
+  if (!info) return null;
+
+  const desktop = typeof window !== "undefined" ? window.__DESKTOP__ : null;
+
+  const pick = async () => {
+    const picked = desktop
+      ? await desktop.pickFolder(info.path)
+      : window.prompt(t("dataDir"), info.path);
+    if (picked && picked !== info.path) onChange(picked);
+  };
+
+  return (
+    <div className="model-field data-dir-field">
+      <span title={t("dataDirHelp")}>{t("dataDir")}</span>
+      <input className="path-box" readOnly value={info.path} title={info.path} />
+      <div className="data-dir-actions">
+        <button type="button" className="mini-btn" onClick={pick}>
+          {t("browse")}
+        </button>
+        {desktop && (
+          <button
+            type="button"
+            className="mini-btn"
+            onClick={() => desktop.openPath(info.path)}
+          >
+            {t("openFolder")}
+          </button>
+        )}
+        {!info.is_default && (
+          <button
+            type="button"
+            className="mini-btn"
+            onClick={() => onChange("")}
+            title={info.default}
+          >
+            {t("useDefault")}
+          </button>
+        )}
+      </div>
     </div>
   );
 }

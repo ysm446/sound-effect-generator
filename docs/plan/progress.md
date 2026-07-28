@@ -15,12 +15,13 @@
 - モデル配置：`models/stable-audio-3-medium/`（重み + config + t5gemma 一式）
 
 ### バックエンド（`backend/`）
-- **複数モデル対応**：medium / small-sfx を切替可能。選択は `data/config.json` に永続化し次回も使用。`engine.py` が要求モデルをロード（別モデルが載っていれば解放してから差し替え）。t5gemma は1つを共有（複製不要）。`/api/models` `/api/model`
+- **保存先フォルダの切り替え**：生成データ（WAV + `jobs.json`）の保存先ルートを UI から変更可能。既定は `data/`、設定は `app-config.json`（プロジェクト直下）に永続化。切り替えは「そのフォルダを読む」だけで移動・削除はしない。生成中は変更不可、フォルダが使えない場合は `data/` にフォールバック。`GET/POST /api/datadir`
+- **複数モデル対応**：medium / small-sfx を切替可能。選択は `app-config.json` に永続化し次回も使用（旧 `data/config.json` からは自動移行）。`engine.py` が要求モデルをロード（別モデルが載っていれば解放してから差し替え）。t5gemma は1つを共有（複製不要）。`/api/models` `/api/model`
 - `engine.py`：モデルの遅延ロード + `generate()`、ローカル（共有）t5gemma を参照
 - `server.py`：FastAPI、生成キュー（単一ワーカー）、`/api/generate` `/api/jobs` `/api/audio` `/api/health`
-- ジョブの永続化（`data/jobs.json`、起動時復元）
+- ジョブの永続化（`<データフォルダ>/jobs.json`、起動時復元）
 - seed=-1（ランダム）時に実際の seed 値を記録・返却
-- カード削除時に `data/` の WAV も削除
+- カード削除時にデータフォルダの WAV も削除
 
 ### フロントエンド（`frontend/`）
 - Electron + React + Vite、Electron が Python サーバを自動起動

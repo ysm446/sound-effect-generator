@@ -22,6 +22,13 @@ const STRINGS = {
     engineMissing: "Model files not available",
     missingFiles: "Missing model files:",
     genSettings: "Generation settings",
+    dataDir: "Data folder",
+    dataDirHelp:
+      "Where generated WAVs and the result list are stored. Switching just reads the other folder — nothing is moved or deleted.",
+    browse: "Browse…",
+    openFolder: "Open in Explorer",
+    useDefault: "Use default",
+    dataDirBusy: "Cannot change the data folder while jobs are queued or generating.",
     empty: 'No generations yet. Set the options on the left and click "Add to queue".',
     connectError: "Cannot connect to the backend. Check that the server is running.",
 
@@ -72,6 +79,13 @@ const STRINGS = {
     engineMissing: "モデルファイルがありません",
     missingFiles: "モデルファイルが不足しています:",
     genSettings: "生成条件",
+    dataDir: "保存先フォルダ",
+    dataDirHelp:
+      "生成した WAV と結果一覧の保存先。切り替えても中身の移動・削除は行わず、その場所を読み込むだけです。",
+    browse: "参照…",
+    openFolder: "エクスプローラーで開く",
+    useDefault: "既定に戻す",
+    dataDirBusy: "生成中・待機中のジョブがあるため保存先を変更できません。",
     empty: "まだ生成タスクがありません。左で条件を設定して「生成キューに追加」してください。",
     connectError: "バックエンドに接続できません。サーバーが起動しているか確認してください。",
 

@@ -36,7 +36,8 @@ Electron (renderer/React)  --HTTP-->  FastAPI (backend/server.py)  -->  engine.p
 ```
 
 - フロントは `window.__API_BASE__`（preload で注入, 既定 `http://127.0.0.1:8765`）に対して `fetch`。IPC は使っていない。
-- 生成は `backend/server.py` 内の単一ワーカースレッド + `queue.Queue` で**1件ずつ順次処理**（GPU が1基のため）。ジョブのメタデータは `data/jobs.json` に永続化し起動時に復元（`save_jobs()`/`load_jobs()`）、WAV は `data/<job_id>.wav`。起動時、前回中断（queued/running）だったジョブは error 扱いにし、WAV が消えた done ジョブは読み込まない。
+- 生成は `backend/server.py` 内の単一ワーカースレッド + `queue.Queue` で**1件ずつ順次処理**（GPU が1基のため）。ジョブのメタデータは `<データフォルダ>/jobs.json` に永続化し起動時に復元（`save_jobs()`/`load_jobs()`）、WAV は `<データフォルダ>/<job_id>.wav`。起動時、前回中断（queued/running）だったジョブは error 扱いにし、WAV が消えた done ジョブは読み込まない。
+- **データフォルダは切り替え可能**（既定 `data/`）。詳細は下の「データフォルダ」参照。
 - フロントは 1.5 秒ごとに `/api/jobs` と `/api/health` をポーリングしてカードを更新。
 
 ## 重要な環境上の制約
@@ -63,6 +64,20 @@ Electron (renderer/React)  --HTTP-->  FastAPI (backend/server.py)  -->  engine.p
 - ローカル配置は HF リポジトリ構造をミラーする（`backend/engine.py` の `MODEL_DIR` 以下）。
 - `engine.py` の `_patch_text_encoder_paths()` が `model_config.json` 内の t5gemma 参照をローカルフォルダの絶対パスへ書き換え、完全オフラインでロードする。**model_config.json の中身を見て参照キー名が変わっていたらここを調整する。**
 - `models/qwen3.5_2b_bf16.safetensors` は medium のロードには未使用（large 用 or プロンプト補助の可能性）。現状ロード対象外。
+
+## データフォルダ（生成結果の保存先）
+
+アプリ本体と生成データを分けられるよう、保存先ルートを UI（左パネル「保存先フォルダ」）から切り替えられる。
+
+- 既定は `data/`。設定値は**プロジェクト直下の `app-config.json`**（`{"data_dir": ..., "model": ...}`, gitignore 済み）に保存する。保存先の場所を記録するファイルなので、データフォルダの中には置けない点に注意。
+- 旧 `data/config.json`（モデル選択）は `app-config.json` が無いときだけ読まれる（移行用フォールバック）。
+- `server.py` の `OUTPUT_DIR` は**可変のグローバル**。パスを組み立てるコードは呼び出し時に参照すること（`jobs_file()` が関数なのはこのため）。
+- API：`GET /api/datadir` → `{path, default, is_default}`、`POST /api/datadir {path}`（空文字で既定に戻す）。`/api/health` にも `data_dir` を含む。
+- 切り替えの意味論は**「そのフォルダを読む」だけ**。ファイルの移動・コピー・削除は一切しない。切り替え後は新フォルダの `jobs.json` を読み直してカード一覧が入れ替わる。
+- queued/running のジョブがあるときは 409 `jobs_in_progress` で拒否（生成中の WAV が旧フォルダに取り残されるため）。
+- 起動時に設定フォルダが使えない（ドライブ未接続など）場合は `data/` にフォールバックして起動する。
+- フォルダ選択ダイアログとエクスプローラー起動だけは HTTP では実現できないため、`preload.cjs` の `window.__DESKTOP__`（`dialog:pick-folder` / `shell:open-path`）で IPC を使っている。ブラウザ実行時は `window.prompt` に退避。
+- F12 スクリーンショットの保存先（`main.cjs`）も `/api/datadir` を問い合わせて追従する。
 
 ## 主要ファイル
 
@@ -96,6 +111,6 @@ cd frontend; npm run dev
 
 ## 注意点 / TODO 候補
 
-- ジョブは `data/jobs.json` に永続化済み（再起動で復元）。さらに堅牢にするなら SQLite 化も可。
+- ジョブは `<データフォルダ>/jobs.json` に永続化済み（再起動で復元）。さらに堅牢にするなら SQLite 化も可。
 - `generate_diffusion_cond_inpaint` を素の条件生成に流用している。挙動に問題があれば `generate_diffusion_cond` へ切替（engine.py 内で try/except 済み）。
 - 配布（electron-builder）時は `runtime/` `.venv/` `models/` を同梱するか別途 DL させるか要検討（巨大）。

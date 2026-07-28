@@ -11,7 +11,7 @@ Electron (React UI) ──HTTP──> FastAPI (生成キュー) ──> engine �
 ```
 
 - 生成は単一ワーカースレッドで 1 件ずつ順次処理（GPU が 1 基のため）
-- ジョブと結果は `data/`（WAV + `jobs.json`）に永続化
+- ジョブと結果はデータフォルダ（WAV + `jobs.json`、既定 `data/`・UI から変更可）に永続化。場所の設定は `app-config.json`
 - Python は `runtime/`（3.10 standalone）+ `.venv` でプロジェクト内蔵
 
 ## 優先順位

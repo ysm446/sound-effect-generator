@@ -10,6 +10,9 @@ models/
 # Generated audio
 data/
 
+# Local app settings (data folder location, selected model)
+app-config.json
+
 # Node / Electron
 node_modules/
 frontend/node_modules/
