@@ -67,7 +67,7 @@
   - 塗り：`color-mix(in srgb, var(--accent) 12〜20%, transparent)`
   - 枠線：`color-mix(in srgb, var(--accent) 45〜55%, transparent)`
 - **状態色（ok / warn / err）の淡い面**は既存にならい `rgba(..., 0.15〜0.2)`。
-- 影：`rgba(0, 0, 0, 0.45)` 前後。それより濃い影は使わない。
+- 影：`rgba(0, 0, 0, 0.45)` 前後。それより濃い影は使わない。モーダルの背景幕も同じ `rgba(0, 0, 0, 0.45)`。
 
 ---
 
@@ -166,7 +166,7 @@ font-family: "Segoe UI", system-ui, sans-serif;
 
 ### z-index
 
-`30`（メニューを開いたカード） < `40`（ドロップダウン） < `50`（ツールチップ）。新しい重なりはこの範囲に収め、100 以上を使わない。
+`30`（メニューを開いたカード） < `40`（ドロップダウン、モーダル） < `50`（ツールチップ）。新しい重なりはこの範囲に収め、100 以上を使わない。
 
 ---
 
@@ -181,7 +181,7 @@ font-family: "Segoe UI", system-ui, sans-serif;
 | `.primary` | `--accent-2` 塗り / 白文字 / 600 / padding 11px | 画面で最も重要な 1 アクション（生成）。**1 画面に 1 つまで** |
 | `.mini-btn` | `--panel-2` / 枠線 / 12px / padding 4px 10px | 補助操作（フォルダ選択、開く、既定に戻す） |
 | `.suggest-btn` | ピル / 枠線 / 12px | ラベル行に添える軽い操作 |
-| `.dice-btn` | 30×30 の正方形アイコンボタン | 入力欄に隣接するアイコン操作 |
+| `.icon-btn` / `.dice-btn` | 30×30 の正方形アイコンボタン（同じ見た目） | 単独のアイコン操作（サイコロ、トップバーの歯車、ダイアログの閉じる） |
 | `.row-menu` | 34×34 の円 / 背景なし | カードの「…」メニュー |
 | `.ap-vol` / `.ap-loop` | 26×26 / 背景なし / `--muted` | プレーヤー内のアイコン操作 |
 
@@ -220,6 +220,14 @@ font-family: "Segoe UI", system-ui, sans-serif;
 ### トグル（`.engine-toggle`）
 
 ピル + 左に 8px のドット。off = 灰ドット、on = `--accent` のドット + 淡い塗り + 光彩、loading = `--warn` のドットが点滅。**常駐リソースの ON/OFF はこの形で表す。**
+
+### モーダルダイアログ（`.modal-backdrop` + `.modal`）
+
+設定など、画面を一時的に覆う対話に使う。`.modal-backdrop`（`position: fixed; inset: 0`、`rgba(0,0,0,.45)`、z-index 40）の中央に `.modal`（幅 520px、`--panel`、枠線、角丸 12px、ドロップダウンと同じ影）を置く。
+
+- 構造：`.modal-head`（見出し `h2` は `.panel h2` と同じ 15px 大文字 + 右端に `.icon-btn` の閉じる）→ `.modal-body`（padding 20、項目間 gap 18、内側だけスクロール）。
+- 中の項目は既存部品で組む：`.model-field` + `.model-select`、`.data-dir-field`（パス表示 + `.mini-btn` 群）、まとまりは `.settings-group`（見出しは `.settings-title`：13px / `--muted` / 大文字）。
+- **外側クリックと Esc の両方で閉じる**。開いている間は 1 つだけ。ダイアログの中にさらにダイアログを重ねない。
 
 ### バナー（`.banner`）
 

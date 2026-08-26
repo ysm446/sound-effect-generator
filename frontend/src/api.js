@@ -52,6 +52,21 @@ export const api = {
     }).then(jsonOrThrow);
   },
 
+  // LLM (GGUF) folder + file used for suggestions / titles.
+  getLlm() {
+    return fetch(`${API_BASE}/api/llm`).then(jsonOrThrow);
+  },
+
+  // {dir, model}: omit a key to leave it unchanged; "" = default folder /
+  // first GGUF found.
+  setLlm(changes) {
+    return fetch(`${API_BASE}/api/llm`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(changes),
+    }).then(jsonOrThrow);
+  },
+
   setEngine(name, action) {
     return fetch(`${API_BASE}/api/engine/${name}`, {
       method: "POST",

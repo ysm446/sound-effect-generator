@@ -29,6 +29,16 @@ const STRINGS = {
     openFolder: "Open in Explorer",
     useDefault: "Use default",
     dataDirBusy: "Cannot change the data folder while jobs are queued or generating.",
+    settings: "Settings",
+    close: "Close",
+    llmSection: "LLM (prompt suggestions)",
+    llmDir: "GGUF folder",
+    llmDirHelp:
+      "Folder searched for .gguf files (default: models/). The selected file is run with llama-server for prompt suggestions and card titles.",
+    llmModel: "GGUF file",
+    llmNone: "No .gguf files found in this folder",
+    llmNoServer: "llama-server.exe not found under runtime/llama_cpp/",
+    llmDirMissing: "That folder does not exist.",
     empty: 'No generations yet. Set the options on the left and click "Add to queue".',
     connectError: "Cannot connect to the backend. Check that the server is running.",
 
@@ -86,6 +96,16 @@ const STRINGS = {
     openFolder: "エクスプローラーで開く",
     useDefault: "既定に戻す",
     dataDirBusy: "生成中・待機中のジョブがあるため保存先を変更できません。",
+    settings: "設定",
+    close: "閉じる",
+    llmSection: "LLM（プロンプト推測）",
+    llmDir: "GGUF フォルダ",
+    llmDirHelp:
+      ".gguf ファイルを探すフォルダ（既定: models/）。選んだファイルを llama-server で実行し、プロンプト推測とカードのタイトル生成に使います。",
+    llmModel: "GGUF ファイル",
+    llmNone: "このフォルダに .gguf ファイルが見つかりません",
+    llmNoServer: "runtime/llama_cpp/ に llama-server.exe が見つかりません",
+    llmDirMissing: "そのフォルダは存在しません。",
     empty: "まだ生成タスクがありません。左で条件を設定して「生成キューに追加」してください。",
     connectError: "バックエンドに接続できません。サーバーが起動しているか確認してください。",
 

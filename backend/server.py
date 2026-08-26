@@ -203,6 +203,10 @@ def save_selected_model(key: str) -> None:
 
 SELECTED_MODEL = load_selected_model()
 
+# LLM (GGUF) folder + file used for prompt suggestions / card titles. Empty
+# folder means the default ``models/``; empty file means "first GGUF found".
+suggest.configure(APP_CONFIG.get("llm_dir"), APP_CONFIG.get("llm_model"))
+
 
 def _worker() -> None:
     """Background thread: pull job ids and run generation sequentially."""
@@ -340,6 +344,7 @@ def health() -> dict:
         "llm_loaded": suggest.is_loaded(),
         "llm_loading": llm_loading,
         "llm_present": suggest.model_files_present(),
+        "llm_model": suggest.selected_model(),
     }
 
 
@@ -414,6 +419,68 @@ def set_model(req: ModelRequest) -> dict:
     save_selected_model(SELECTED_MODEL)
     ok, missing = engine.model_files_present(SELECTED_MODEL)
     return {"selected": SELECTED_MODEL, "model_ready": ok, "missing_files": missing}
+
+
+def _llm_state() -> dict:
+    d = suggest.model_dir()
+    return {
+        "dir": str(d),
+        "default_dir": str(suggest.DEFAULT_MODEL_DIR),
+        "is_default_dir": d == suggest.DEFAULT_MODEL_DIR,
+        "models": suggest.list_models(),
+        "selected": suggest.selected_model(),
+        "present": suggest.model_files_present(),
+        "server_available": suggest.llama_server_exe() is not None,
+    }
+
+
+@app.get("/api/llm")
+def get_llm() -> dict:
+    """The GGUF folder, the files in it and which one is selected."""
+    return _llm_state()
+
+
+class LlmRequest(BaseModel):
+    # Omitted = unchanged. Empty string = default folder / first GGUF found.
+    dir: Optional[str] = None
+    model: Optional[str] = None
+
+
+@app.post("/api/llm")
+def set_llm(req: LlmRequest) -> dict:
+    """Change the GGUF folder and/or file. A running llama-server is restarted
+    with the new file so the change takes effect immediately."""
+    new_dir = suggest.resolve_dir(req.dir) if req.dir is not None else suggest.model_dir()
+    if req.dir is not None and not new_dir.is_dir():
+        raise HTTPException(status_code=400, detail="folder_not_found")
+    dir_changed = new_dir != suggest.model_dir()
+    # Changing the folder invalidates a file selection made relative to it.
+    new_model = req.model if req.model is not None else ("" if dir_changed else None)
+
+    was_loaded = suggest.is_loaded()
+    suggest.configure(
+        "" if new_dir == suggest.DEFAULT_MODEL_DIR else str(new_dir),
+        new_model if new_model is not None else suggest._config["model"],
+    )
+    APP_CONFIG["llm_dir"] = "" if new_dir == suggest.DEFAULT_MODEL_DIR else str(new_dir)
+    APP_CONFIG["llm_model"] = suggest._config["model"] or ""
+    save_app_config()
+
+    # Restart the server if the effective file changed while it was running.
+    new_path = suggest.selected_model_path()
+    if was_loaded and new_path != suggest._state["model_path"]:
+        with ENGINE_STATE_LOCK:
+            ENGINE_LOADING["llm"] = True
+
+        def restart() -> None:
+            suggest.unload()
+            if suggest.model_files_present():
+                suggest.preload()
+
+        threading.Thread(
+            target=_run_engine_task, args=("llm", restart), daemon=True
+        ).start()
+    return _llm_state()
 
 
 class EngineRequest(BaseModel):

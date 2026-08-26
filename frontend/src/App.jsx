@@ -3,10 +3,29 @@ import { api } from "./api.js";
 import GenerateForm from "./components/GenerateForm.jsx";
 import ResultCard from "./components/ResultCard.jsx";
 import StatusBar from "./components/StatusBar.jsx";
-import { useI18n, LANGS } from "./i18n.jsx";
+import SettingsDialog from "./components/SettingsDialog.jsx";
+import { useI18n } from "./i18n.jsx";
+
+function GearIcon() {
+  return (
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <circle cx="12" cy="12" r="3" />
+      <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z" />
+    </svg>
+  );
+}
 
 export default function App() {
-  const { t, lang, setLang } = useI18n();
+  const { t } = useI18n();
   const [health, setHealth] = useState(null);
   const [jobs, setJobs] = useState([]);
   const [error, setError] = useState(null);
@@ -19,6 +38,7 @@ export default function App() {
   const [selectedModel, setSelectedModel] = useState(null);
   // Where generated results are stored ({path, default, is_default}).
   const [dataDir, setDataDir] = useState(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const refreshModels = useCallback(async () => {
     try {
@@ -144,18 +164,6 @@ export default function App() {
           <p className="subtitle">{t("subtitle")}</p>
         </div>
         <div className="status">
-          <select
-            className="lang-select"
-            value={lang}
-            onChange={(e) => setLang(e.target.value)}
-            title={t("language")}
-          >
-            {LANGS.map((l) => (
-              <option key={l.code} value={l.code}>
-                {l.label}
-              </option>
-            ))}
-          </select>
           <EngineToggle
             label="LLM"
             loaded={!!health?.llm_loaded}
@@ -172,8 +180,23 @@ export default function App() {
             online={!!health}
             onToggle={() => handleEngineToggle("audio", health?.audio_loaded)}
           />
+          <button
+            type="button"
+            className="icon-btn"
+            onClick={() => setSettingsOpen(true)}
+            title={t("settings")}
+            aria-label={t("settings")}
+          >
+            <GearIcon />
+          </button>
         </div>
       </header>
+
+      <SettingsDialog
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        onLlmChange={() => api.health().then(setHealth).catch(() => {})}
+      />
 
       {health && !modelReady && (
         <div className="banner warn">

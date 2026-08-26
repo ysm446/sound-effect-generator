@@ -16,6 +16,7 @@
 
 ### バックエンド（`backend/`）
 - **保存先フォルダの切り替え**：生成データ（WAV + `jobs.json`）の保存先ルートを UI から変更可能。既定は `data/`、設定は `app-config.json`（プロジェクト直下）に永続化。切り替えは「そのフォルダを読む」だけで移動・削除はしない。生成中は変更不可、フォルダが使えない場合は `data/` にフォールバック。`GET/POST /api/datadir`
+- **LLM（プロンプト推測・カードタイトル）を llama.cpp に移行**：`runtime/llama_cpp/versions/<最新ビルド>/llama-server.exe` を Python が子プロセスとして起動し、OpenAI 互換 API（127.0.0.1:8766）で対話。使う GGUF は設定パネルで選択（フォルダ既定 `models/`、`app-config.json` の `llm_dir` / `llm_model`）。`GET/POST /api/llm`。transformers 版（`models/Qwen3.5-2B`）は使わなくなった
 - **複数モデル対応**：medium / small-sfx を切替可能。選択は `app-config.json` に永続化し次回も使用（旧 `data/config.json` からは自動移行）。`engine.py` が要求モデルをロード（別モデルが載っていれば解放してから差し替え）。t5gemma は1つを共有（複製不要）。`/api/models` `/api/model`
 - `engine.py`：モデルの遅延ロード + `generate()`、ローカル（共有）t5gemma を参照
 - `server.py`：FastAPI、生成キュー（単一ワーカー）、`/api/generate` `/api/jobs` `/api/audio` `/api/health`
@@ -25,6 +26,7 @@
 
 ### フロントエンド（`frontend/`）
 - Electron + React + Vite、Electron が Python サーバを自動起動
+- 右上の歯車 → 設定パネル（言語、LLM の GGUF フォルダ／ファイル）
 - UI：条件入力 → 生成キュー → 結果カード一覧（SUNO 風の横長リスト）
 - 自前のオーディオプレーヤー（再生/一時停止・時間・ミュート）＋ **波形ビジュアライザ**（Web Audio で WAV をデコードし canvas 描画、再生済み部分を塗り分け、クリック/ドラッグでシーク）
 - 生成条件をグループ化、シンプルなスライダー（値ボックス）、項目名ホバーでヘルプ

@@ -6,6 +6,17 @@
 
 ---
 
+## 2026-08-26
+
+### 追加
+- **右上に設定（歯車）アイコンと設定パネルを追加** — 言語選択をトップバーから設定パネルへ移動しました。
+- **LLM のモデルを GGUF ファイルから選べるように** — 設定パネルの「GGUF フォルダ」（既定 `models/`）にある `.gguf` を一覧から選択します。選択は `app-config.json`（`llm_dir` / `llm_model`）に保存され、LLM を読み込み中に変更すると新しいファイルで再起動します。
+
+### 変更
+- **LLM の実行を transformers から llama.cpp（`llama-server`）に変更** — `runtime/llama_cpp/versions/` にある最新ビルドの `llama-server.exe` を Python バックエンドが子プロセスとして起動し、OpenAI 互換 API（`127.0.0.1:8766`）経由でプロンプト推測とカードタイトルを生成します。トップバーの「LLM」トグルは、このサーバの起動／停止に対応します。
+  - `models/` に `.gguf` が無い場合、LLM トグルは無効のままです（推測ボタンとタイトル生成はスキップ）。従来の `models/Qwen3.5-2B`（safetensors）は使用しません
+  - API: `GET/POST /api/llm`、`/api/health` に `llm_model` を追加
+
 ## 2026-07-28
 
 ### 追加

@@ -159,8 +159,7 @@ body {
   border-color: var(--accent);
 }
 
-.model-select,
-.lang-select {
+.model-select {
   background: var(--panel-2);
   color: var(--text);
   border: 1px solid var(--border);
@@ -170,8 +169,7 @@ body {
   font-family: inherit;
   cursor: pointer;
 }
-.model-select:focus,
-.lang-select:focus {
+.model-select:focus {
   outline: none;
   border-color: var(--accent);
 }
@@ -397,6 +395,9 @@ body {
   align-items: center;
   gap: 8px;
 }
+/* 30×30 square icon button (dice next to the seed box, gear in the top bar,
+   close in dialogs) */
+.icon-btn,
 .dice-btn {
   display: grid;
   place-items: center;
@@ -409,9 +410,61 @@ body {
   cursor: pointer;
   transition: color 0.15s, border-color 0.15s;
 }
+.icon-btn:hover,
 .dice-btn:hover {
   color: var(--accent);
   border-color: var(--accent);
+}
+
+/* Modal dialog (settings) */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.45);
+}
+.modal {
+  width: 520px;
+  max-width: calc(100vw - 44px);
+  max-height: calc(100vh - 44px);
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+}
+.modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+}
+.modal-head h2 {
+  margin: 0;
+  font-size: 15px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+}
+.modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 20px;
+  overflow-y: auto;
+}
+.modal .model-field {
+  margin-bottom: 0;
+}
+.settings-title {
+  font-size: 13px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 /* The slider track + circular thumb (Chromium / Electron) */

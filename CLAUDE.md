@@ -70,6 +70,13 @@ Electron (renderer/React)  --HTTP-->  FastAPI (backend/server.py)  -->  engine.p
 5. **flash_attn 未導入**: 自動で無効化されるだけ（警告のみ、問題なし）。
 6. **seed=-1 (ランダム) の int32 バグ**: stable-audio-tools の生成関数は seed が -1 のとき `np.random.randint(0, 2**32 - 1)` を呼ぶが、Windows では NumPy の既定整数が int32 で上限超過 → `ValueError: high is out of bounds for int32`。`engine.py` 側で seed<0 のとき自前で `random.randint(0, 2**31-1)` を選び**必ず明示的に seed を渡す**ことで回避している。
 
+## LLM（llama.cpp）
+
+- 推論は PyTorch ではなく **llama.cpp の `llama-server.exe`**（`runtime/llama_cpp/versions/bNNNN-win-cuda13-x64/`、複数あれば番号最大を使用）。Python の依存は増えない（`urllib` のみ）。
+- 「LLM」トグルの load = サーバ spawn → `/health` が ok になるまで待機（最大 180 秒）、unload = プロセス終了。バックエンド終了時も `atexit` で kill。
+- 起動引数：`-ngl 99 -c 4096 --no-webui --host 127.0.0.1 --port 8766`（`LLAMA_SERVER_PORT` で変更可）。Qwen3 系の thinking は `chat_template_kwargs.enable_thinking=false` で抑止し、念のため `<think>…</think>` も除去する。
+- `mmproj-*.gguf` は一覧から除外。
+
 ## モデルファイル
 
 - HF リポジトリ `stabilityai/stable-audio-3-medium` は**ゲート付き**（401）。取得には HF 認証 or ログイン済みブラウザでの手動 DL が必要。
@@ -81,7 +88,7 @@ Electron (renderer/React)  --HTTP-->  FastAPI (backend/server.py)  -->  engine.p
 
 アプリ本体と生成データを分けられるよう、保存先ルートを UI（左パネル「保存先フォルダ」）から切り替えられる。
 
-- 既定は `data/`。設定値は**プロジェクト直下の `app-config.json`**（`{"data_dir": ..., "model": ...}`, gitignore 済み）に保存する。保存先の場所を記録するファイルなので、データフォルダの中には置けない点に注意。
+- 既定は `data/`。設定値は**プロジェクト直下の `app-config.json`**（`{"data_dir", "model", "llm_dir", "llm_model"}`, gitignore 済み）に保存する。保存先の場所を記録するファイルなので、データフォルダの中には置けない点に注意。
 - 旧 `data/config.json`（モデル選択）は `app-config.json` が無いときだけ読まれる（移行用フォールバック）。
 - `server.py` の `OUTPUT_DIR` は**可変のグローバル**。パスを組み立てるコードは呼び出し時に参照すること（`jobs_file()` が関数なのはこのため）。
 - API：`GET /api/datadir` → `{path, default, is_default}`、`POST /api/datadir {path}`（空文字で既定に戻す）。`/api/health` にも `data_dir` を含む。
@@ -96,10 +103,12 @@ Electron (renderer/React)  --HTTP-->  FastAPI (backend/server.py)  -->  engine.p
 | ファイル | 役割 |
 |---------|------|
 | `backend/engine.py` | モデルのロード（遅延・1回のみ）と `generate()`。スレッドロックで直列化。 |
-| `backend/server.py` | FastAPI。`/api/generate`(POST), `/api/jobs`, `/api/jobs/{id}`(GET/DELETE), `/api/audio/{id}`, `/api/health`。ワーカースレッドでキュー処理。 |
+| `backend/suggest.py` | LLM（プロンプト推測・カードタイトル）。`runtime/llama_cpp/versions/<最新 bNNNN>/llama-server.exe` を子プロセスで起動し、OpenAI 互換 API（127.0.0.1:8766）を叩く。GGUF の場所は `app-config.json` の `llm_dir`（既定 `models/`）/ `llm_model`（未設定なら見つかった最初の .gguf）。 |
+| `backend/server.py` | FastAPI。`/api/generate`(POST), `/api/jobs`, `/api/jobs/{id}`(GET/DELETE), `/api/audio/{id}`, `/api/health`, `/api/llm`(GET/POST), `/api/engine/{audio|llm}`。ワーカースレッドでキュー処理。 |
 | `frontend/electron/main.cjs` | Python サーバ spawn → `/api/health` を待機 → BrowserWindow 生成。終了時に Python を kill。 |
 | `frontend/src/App.jsx` | ポーリング・状態管理・レイアウト。 |
 | `frontend/src/components/GenerateForm.jsx` | プロンプト・パラメータ入力、プリセット。 |
+| `frontend/src/components/SettingsDialog.jsx` | 右上歯車から開く設定パネル（言語、LLM の GGUF フォルダ／ファイル）。 |
 | `frontend/src/components/ResultCard.jsx` | ジョブ1件のカード（状態・再生・保存・削除）。 |
 
 ## 実行・デバッグ
