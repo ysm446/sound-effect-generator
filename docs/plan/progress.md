@@ -15,6 +15,7 @@
 - モデル配置：`models/stable-audio-3-medium/`（重み + config + t5gemma 一式）
 
 ### バックエンド（`backend/`）
+- **CLI / MCP 入口**（2026-09-13）：`backend/cli.py`（`sfx.bat`）と `backend/mcp_server.py`。バックエンド未起動なら detached で自動起動し、生成完了まで待って WAV パスを返す。`POST /api/shutdown` で終了。Claude Code には `.mcp.json` で登録済み。動作確認：別ポート（`SFX_PORT=8799`）でコールドスタート→生成→停止、MCP stdio クライアントからのツール呼び出し
 - **保存先フォルダの切り替え**：生成データ（WAV + `jobs.json`）の保存先ルートを UI から変更可能。既定は `data/`、設定は `app-config.json`（プロジェクト直下）に永続化。切り替えは「そのフォルダを読む」だけで移動・削除はしない。生成中は変更不可、フォルダが使えない場合は `data/` にフォールバック。`GET/POST /api/datadir`
 - **LLM（プロンプト推測・カードタイトル）を llama.cpp に移行**：`runtime/llama_cpp/versions/<最新ビルド>/llama-server.exe` を Python が子プロセスとして起動し、OpenAI 互換 API（127.0.0.1:8766）で対話。使う GGUF は設定パネルで選択（フォルダ既定 `models/`、`app-config.json` の `llm_dir` / `llm_model`）。`GET/POST /api/llm`。transformers 版（`models/Qwen3.5-2B`）は使わなくなった
 - **複数モデル対応**：medium / small-sfx を切替可能。選択は `app-config.json` に永続化し次回も使用（旧 `data/config.json` からは自動移行）。`engine.py` が要求モデルをロード（別モデルが載っていれば解放してから差し替え）。t5gemma は1つを共有（複製不要）。`/api/models` `/api/model`
@@ -44,6 +45,7 @@
 - アプリ全体起動（Electron + 自動 Python 起動 + UI ポーリング）
 - 永続化：再起動後にカード復元・音声再生可
 - `ELECTRON_RUN_AS_NODE=1`（VS Code 由来）対策のランチャー（`electron/launch.cjs`）
+- CLI：コールドスタート（自動起動）→生成→`stop`、`--json` 出力。MCP：stdio クライアントから 4 ツールを呼び出し
 
 ## 残っている注意点
 - Windows に triton が無いため flex_attention は eager フォールバック（動作は問題なし／高速化は今後）

@@ -130,6 +130,105 @@ npm start       # Electron で dist を読み込み起動
 - 生成中・待機中のジョブがあるときは変更できません
 - 設定したフォルダが見つからない場合（外付けドライブ未接続など）は、`data/` にフォールバックして起動します
 
+### コマンドライン／LLM から使う（CLI・MCP）
+
+UI を開かずに生成できる入口を用意しています。どちらも UI と同じバックエンド（`127.0.0.1:8765`）を使い、**動いていなければ裏で自動起動**します。起動したバックエンドはそのまま常駐し（モデルのロードを毎回払わないため）、`sfx stop` で終了します。生成結果は UI と同じ保存先フォルダに入り、アプリを開けばカードとしても見えます。
+
+#### CLI（`sfx.bat`）
+
+```powershell
+.\sfx.bat generate "glass shattering on a tile floor" --seconds 4   # WAV のパスを標準出力に出す
+.\sfx.bat generate "door creak" --seconds 3 --seed 42 --json       # 結果をまるごと JSON で
+.\sfx.bat list --limit 5        # 最近の結果
+.\sfx.bat get <job_id>          # 1件の詳細
+.\sfx.bat status                # バックエンドが動いているか
+.\sfx.bat start / stop          # バックエンドの起動／終了
+```
+
+- オプション：`--seconds` `--steps` `--cfg-scale` `--negative` `--seed`（-1 でランダム）`--timeout`
+- 進捗はstderr、結果はstdoutに出るので、スクリプトからは `--json` でstdoutだけを読めば十分です
+- 別ポートで動かす場合は環境変数 `SFX_PORT`（既定 8765）
+- 自動起動したバックエンドのログは `cli-server.log`（プロジェクト直下）
+
+#### MCP サーバー（Claude Code / Claude Desktop などから）
+
+`backend/mcp_server.py` が MCP（Model Context Protocol）サーバーとして次のツールを公開します。LLM に「〜の効果音を作って」と頼むと、裏でバックエンドを立ち上げて生成し、WAV のパスが返ります。
+
+| ツール | 役割 |
+|-------|------|
+| `generate_sound_effect(prompt, seconds, steps, cfg_scale, negative_prompt, seed)` | 生成して WAV の絶対パスと使用 seed を返す（完了まで待つ） |
+| `list_sound_effects(limit)` | 最近の結果一覧 |
+| `backend_status()` | バックエンドの状態 |
+| `stop_backend()` | バックエンド終了（VRAM 解放） |
+
+- **Claude Code**：プロジェクト直下の `.mcp.json` に登録済み。このフォルダで `claude` を起動すれば `sfx` サーバーとして使えます（初回は承認ダイアログが出ます）。手動登録する場合：
+  ```powershell
+  claude mcp add sfx -- .venv/Scripts/python.exe backend/mcp_server.py
+  ```
+- **Claude Desktop** など他のクライアント：`command` に `<プロジェクト>\.venv\Scripts\python.exe`、`args` に `<プロジェクト>\backend\mcp_server.py` を絶対パスで指定してください
+- 初回呼び出しはバックエンド起動＋モデルロードで 1 分弱かかることがあります。2 回目以降は数秒です
+
+#### 他のプロジェクトから使う（ゲーム・動画などの作業中に効果音を作らせる）
+
+`.mcp.json` はこのフォルダで `claude` を起動したときだけ有効です。別のプロジェクトの作業中に LLM に効果音を作らせるには、次の 2 つを行います。
+
+**1. ユーザー設定として登録する（一度だけ）**
+
+どのフォルダから起動しても `sfx` ツールが見えるようになります。絶対パスで指定してください（この例はプロジェクトが `D:\GitHub\sound-effect-generator` にある場合）。
+
+```powershell
+claude mcp add --scope user sfx -- D:\GitHub\sound-effect-generator\.venv\Scripts\python.exe D:\GitHub\sound-effect-generator\backend\mcp_server.py
+claude mcp list   # 「sfx: ... ✓ Connected」と出れば OK
+```
+
+**2. 相手プロジェクトの `CLAUDE.md`（または `AGENTS.md`）に使い方を書く**
+
+ツールが見えていても、LLM はそれをいつ・どう使うかを知りません。以下をそのままコピーして貼ってください。使う保存先フォルダ名などは自分の環境に合わせて直します。
+
+````markdown
+## 効果音の生成（sfx MCP）
+
+このマシンには Stable Audio 3 をローカル実行する効果音ジェネレーターがあり、
+MCP サーバー `sfx` のツールとして使える。効果音（SE）が必要になったら
+自分で生成してよい。
+
+- `generate_sound_effect(prompt, seconds=8, steps=8, cfg_scale=1.0, negative_prompt=None, seed=-1)`
+  生成が終わるまで待ち、WAV の絶対パスと実際に使った seed を返す。
+  初回はバックエンド起動とモデルロードで 1 分弱かかる。2 回目以降は数秒。
+- `list_sound_effects(limit)` 最近生成したものと WAV パスの一覧
+- `backend_status()` / `stop_backend()` 状態確認と終了（VRAM を空けたいとき）
+
+### プロンプトの書き方
+- **英語**で書く。日本語の依頼は英語に訳してから渡す。
+- 音そのものを具体的に描く：素材・動作・空間・距離。
+  良い例: "heavy wooden door slamming shut in a stone hallway, close mic"
+  悪い例: "door sound", "scary noise"
+- 音楽・声・歌詞は不得意。効果音・環境音・アンビエンスに使う。
+- 長さは必要最小限にする（ワンショットは 1〜3 秒、ループ素材やアンビエンスは 8〜20 秒）。
+  上限は約 47 秒。
+- 同じ音のバリエーションが欲しいときは prompt を固定して `seed` だけ変える。
+  気に入った結果を再現するには返ってきた seed を渡す。
+- 品質に不満があれば `steps` を 16〜32 に上げる（生成時間は比例して増える）。
+
+### 生成後にやること
+- 返ってきた WAV パスのファイルを、このプロジェクトのアセットフォルダ
+  （例: `assets/sfx/`）に **コピー**して、用途が分かる名前に変える。
+  元ファイルはジェネレーター側の保存先に残るので、移動や削除はしない。
+- 生成した音が要望と違ったら、プロンプトを具体化して再生成する。
+  最初から複数案（seed 違いで 2〜3 個）を作って選ばせてもよい。
+- 形式は 44.1 kHz ステレオ WAV。別の形式やモノラルが必要なら ffmpeg 等で変換する。
+````
+
+**MCP を使わない場合（CLI）**
+
+MCP を登録できない環境や、スクリプトから呼びたい場合は CLI でも同じことができます。LLM には次を伝えてください。
+
+```markdown
+効果音は次のコマンドで生成できる（WAV の絶対パスが標準出力に出る）:
+  D:\GitHub\sound-effect-generator\sfx.bat generate "<english prompt>" --seconds 3
+`--json` を付けると結果全体（seed 含む）が JSON で返る。
+```
+
 ---
 
 ## 動作環境（確認済み）

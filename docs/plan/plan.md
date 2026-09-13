@@ -30,6 +30,7 @@ Electron (React UI) ──HTTP──> FastAPI (生成キュー) ──> engine �
 - [ ] 結果カードの検索・並べ替え・タグ
 - [ ] `triton-windows` 導入による生成高速化の検討
 - [ ] electron-builder での配布パッケージ化（巨大な runtime/models の扱いを要検討）
+- [ ] CLI / MCP の拡張 — 非同期ツール（ジョブ ID を返して後で取得）、生成結果の削除ツール、MCP からのモデル切替。基盤（`cli.py` / `mcp_server.py`）は 2026-09-13 に導入済み。
 - [ ] negative_prompt を UI に再導入するか判断（現状バックエンドのみ対応）
 
 ## 設計上の決めごと

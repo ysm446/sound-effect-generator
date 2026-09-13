@@ -77,6 +77,15 @@ Electron (renderer/React)  --HTTP-->  FastAPI (backend/server.py)  -->  engine.p
 - 起動引数：`-ngl 99 -c 4096 --no-webui --host 127.0.0.1 --port 8766`（`LLAMA_SERVER_PORT` で変更可）。Qwen3 系の thinking は `chat_template_kwargs.enable_thinking=false` で抑止し、念のため `<think>…</think>` も除去する。
 - `mmproj-*.gguf` は一覧から除外。
 
+## CLI / MCP（UI を介さない入口）
+
+- `backend/cli.py`（ラッパー `sfx.bat`）：標準ライブラリだけで `/api/*` を叩く。`/api/health` が応答しなければ `.venv` の Python で `server.py` を **detached で spawn**（`DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP`、ログは `cli-server.log`）し、health が返るまで待つ。生成は `POST /api/generate` → `GET /api/jobs/{id}` をポーリング → `data_dir + filename` で WAV パスを組み立てて返す。
+- `backend/mcp_server.py`：`mcp>=2`（`mcp.server.mcpserver.MCPServer`、旧 `FastMCP` は 2.x で改名）で stdio トランスポート。ツールの実体は `cli.py` の関数をそのまま呼ぶ。`.mcp.json` で Claude Code に登録済み（相対パスはプロジェクト直下からの解決前提）。
+- `POST /api/shutdown`：`sfx stop` / `stop_backend` 用。queued/running があれば 409 `jobs_in_progress`。応答後 0.3 秒で `os._exit(0)`（先に `suggest.unload()` で llama-server を落とす）。
+- バックエンドは UI と CLI で**共有**する。Electron が起動済みならそれを使い、CLI が起動したものは常駐して `sfx stop` まで残る（Electron は自分が spawn した Python しか kill しない）。
+- `mcp` を入れると starlette が 1.x に上がり `fastapi==0.115.6` が壊れる（`Router.__init__() got an unexpected keyword argument 'on_startup'`）。このため fastapi は `>=0.141` に上げてある。**fastapi をピン留めし直すときは mcp との starlette 互換を確認する。**
+- ポートは環境変数 `SFX_PORT` で変更可（テスト時に Electron のバックエンドと衝突させないため）。
+
 ## モデルファイル
 
 - HF リポジトリ `stabilityai/stable-audio-3-medium` は**ゲート付き**（401）。取得には HF 認証 or ログイン済みブラウザでの手動 DL が必要。
@@ -104,7 +113,9 @@ Electron (renderer/React)  --HTTP-->  FastAPI (backend/server.py)  -->  engine.p
 |---------|------|
 | `backend/engine.py` | モデルのロード（遅延・1回のみ）と `generate()`。スレッドロックで直列化。 |
 | `backend/suggest.py` | LLM（プロンプト推測・カードタイトル）。`runtime/llama_cpp/versions/<最新 bNNNN>/llama-server.exe` を子プロセスで起動し、OpenAI 互換 API（127.0.0.1:8766）を叩く。GGUF の場所は `app-config.json` の `llm_dir`（既定 `models/`）/ `llm_model`（未設定なら見つかった最初の .gguf）。 |
-| `backend/server.py` | FastAPI。`/api/generate`(POST), `/api/jobs`, `/api/jobs/{id}`(GET/DELETE), `/api/audio/{id}`, `/api/health`, `/api/llm`(GET/POST), `/api/engine/{audio|llm}`。ワーカースレッドでキュー処理。 |
+| `backend/server.py` | FastAPI。`/api/generate`(POST), `/api/jobs`, `/api/jobs/{id}`(GET/DELETE), `/api/audio/{id}`, `/api/health`, `/api/llm`(GET/POST), `/api/engine/{audio|llm}`, `/api/shutdown`(POST)。ワーカースレッドでキュー処理。 |
+| `backend/cli.py` / `sfx.bat` | コマンドライン入口。バックエンドを必要なら自動起動して生成し、WAV パスを返す。 |
+| `backend/mcp_server.py` / `.mcp.json` | MCP サーバー（stdio）。LLM クライアントから `generate_sound_effect` などを呼べる。 |
 | `frontend/electron/main.cjs` | Python サーバ spawn → `/api/health` を待機 → BrowserWindow 生成。終了時に Python を kill。 |
 | `frontend/src/App.jsx` | ポーリング・状態管理・レイアウト。 |
 | `frontend/src/components/GenerateForm.jsx` | プロンプト・パラメータ入力、プリセット。 |

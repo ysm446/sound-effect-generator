@@ -15,6 +15,9 @@ pytorch_lightning
 soundfile>=0.13
 
 # API server
-fastapi==0.115.6
+fastapi>=0.141
 uvicorn[standard]==0.34.0
 python-multipart==0.0.20
+
+# MCP server (backend/mcp_server.py) so LLM clients can call the generator
+mcp>=2

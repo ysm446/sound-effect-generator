@@ -588,6 +588,31 @@ def delete_job(job_id: str) -> dict:
     return {"deleted": job_id}
 
 
+@app.post("/api/shutdown")
+def shutdown() -> dict:
+    """Stop the backend process (used by ``sfx stop`` / the MCP server).
+
+    Refused while a job is queued or running so a half-written WAV is never
+    left behind. The exit happens on a short timer so the HTTP response can be
+    delivered first. ``os._exit`` skips ``atexit``, so llama-server is stopped
+    explicitly before exiting.
+    """
+    busy = [j for j in JOBS.values() if j.status in ("queued", "running")]
+    if busy:
+        raise HTTPException(
+            status_code=409,
+            detail={"error": "jobs_in_progress", "count": len(busy)},
+        )
+
+    def _exit() -> None:
+        time.sleep(0.3)
+        suggest.unload()
+        os._exit(0)
+
+    threading.Thread(target=_exit, daemon=True).start()
+    return {"stopping": True}
+
+
 @app.get("/api/audio/{job_id}")
 def get_audio(job_id: str):
     job = JOBS.get(job_id)
