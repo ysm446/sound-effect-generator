@@ -3,8 +3,9 @@
 Talks to the same local HTTP API the Electron UI uses (``backend/server.py`` on
 ``127.0.0.1:8765``). If the backend is not running it is started in the
 background with the project's ``.venv`` Python and left running afterwards, so
-a sequence of calls only pays the model-load cost once. ``sfx stop`` shuts it
-down again.
+a sequence of calls only pays the model-load cost once. It exits on its own
+after ``SFX_IDLE_TIMEOUT`` seconds (default 600) without requests or jobs;
+``sfx stop`` shuts it down immediately.
 
 Only the standard library is used so this file can be imported by the MCP
 server (``mcp_server.py``) and run on its own.
@@ -39,6 +40,9 @@ HOST = os.environ.get("SFX_HOST", "127.0.0.1")
 PORT = int(os.environ.get("SFX_PORT", "8765"))
 BASE = f"http://{HOST}:{PORT}"
 
+# A backend we spawn exits by itself after this many idle seconds (no requests,
+# no jobs) so the model does not sit in VRAM forever. 0 disables.
+IDLE_TIMEOUT = float(os.environ.get("SFX_IDLE_TIMEOUT", "600"))
 START_TIMEOUT = 120.0  # seconds to wait for /api/health after spawning
 POLL_INTERVAL = 0.5
 
@@ -94,7 +98,11 @@ def start_backend() -> None:
     else:
         kwargs["start_new_session"] = True
     subprocess.Popen(
-        [str(PYTHON_EXE), str(SERVER_SCRIPT), "--host", HOST, "--port", str(PORT)],
+        [
+            str(PYTHON_EXE), str(SERVER_SCRIPT),
+            "--host", HOST, "--port", str(PORT),
+            "--idle-timeout", str(IDLE_TIMEOUT),
+        ],
         cwd=str(SERVER_SCRIPT.parent),
         env={**os.environ, "PYTHONUNBUFFERED": "1"},
         stdin=subprocess.DEVNULL,

@@ -11,7 +11,8 @@
 ### 追加
 - **CLI（`sfx.bat`）を追加** — UI を開かずにコマンドラインから生成できます。`sfx generate "door creak" --seconds 3` で WAV のパスが返ります。バックエンドが動いていなければ裏で自動起動し、`sfx stop` で終了します。`list` / `get` / `status` / `start` も用意。`--json` で機械可読な出力。
 - **MCP サーバーを追加** — `backend/mcp_server.py` が `generate_sound_effect` / `list_sound_effects` / `backend_status` / `stop_backend` をツールとして公開します。Claude Code などの LLM クライアントから「効果音を作って」と頼むと、裏でアプリのバックエンドを立ち上げて生成し、WAV のパスを返します。プロジェクト直下の `.mcp.json` で Claude Code に登録済み。
-  - API: `POST /api/shutdown`（生成中は 409）
+  - CLI / MCP が起動したバックエンドは **10 分間使われないと自動終了**します（`SFX_IDLE_TIMEOUT` 秒で変更）。アプリが起動したものは従来どおりアプリ終了時に止まります
+  - API: `POST /api/shutdown`（生成中は 409）、`server.py --idle-timeout <秒>`、`/api/health` に `idle_timeout`
   - 生成結果は UI と同じ保存先に入り、アプリを開けばカードとして表示されます
 
 ### 変更

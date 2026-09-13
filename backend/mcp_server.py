@@ -24,7 +24,8 @@ mcp = MCPServer(
     "sound-effect-generator",
     instructions=(
         "Generates sound effects locally from a text description with Stable Audio 3. "
-        "The first call may take a minute while the backend starts and loads the model. "
+        "The first call may take a minute while the backend starts and loads the model; "
+        "it then stays resident and shuts itself down after 10 idle minutes. "
         "Write prompts in English, concrete and sensory (material, action, space), e.g. "
         "'heavy wooden door slamming shut in a stone hallway'."
     ),
@@ -106,9 +107,10 @@ def backend_status() -> dict:
 
 @mcp.tool()
 def stop_backend() -> dict:
-    """Shut down the local generation backend to free GPU memory.
+    """Shut down the local generation backend now to free GPU memory.
 
-    Refused while a job is still queued or running.
+    Not required: the backend exits by itself after 10 idle minutes. Refused
+    while a job is still queued or running.
     """
     try:
         return {"stopped": cli.stop_backend()}

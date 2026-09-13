@@ -273,6 +273,7 @@ def _worker() -> None:
                 if f.exists():
                     f.unlink()
             save_jobs()
+            touch_activity()
             WORK_QUEUE.task_done()
 
 
@@ -311,6 +312,54 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# ---------------------------------------------------------------------------
+# Idle shutdown (only when started with --idle-timeout, i.e. by the CLI/MCP)
+# ---------------------------------------------------------------------------
+# A backend spawned on demand by ``cli.py`` would otherwise live forever and
+# keep the model in VRAM. Every HTTP request and every finished job counts as
+# activity; once nothing has happened for IDLE_TIMEOUT seconds and no job is
+# queued or running, the process exits on its own. The Electron app never
+# passes the flag (it kills the backend itself), and if the UI connects to a
+# CLI-started backend its 1.5 s polling keeps it alive for as long as it is open.
+IDLE_TIMEOUT = 0.0
+LAST_ACTIVITY = time.time()
+
+
+def touch_activity() -> None:
+    global LAST_ACTIVITY
+    LAST_ACTIVITY = time.time()
+
+
+@app.middleware("http")
+async def _track_activity(request, call_next):
+    touch_activity()
+    return await call_next(request)
+
+
+def _busy() -> bool:
+    with JOBS_LOCK:
+        jobs_busy = any(j.status in ("queued", "running") for j in JOBS.values())
+    with ENGINE_STATE_LOCK:
+        loading = any(ENGINE_LOADING.values())
+    return jobs_busy or loading
+
+
+def _exit_process() -> None:
+    """Terminate the backend. ``os._exit`` skips ``atexit``, so stop llama-server first."""
+    suggest.unload()
+    os._exit(0)
+
+
+def _idle_watchdog() -> None:
+    while True:
+        time.sleep(5)
+        if IDLE_TIMEOUT <= 0:
+            continue
+        idle = time.time() - LAST_ACTIVITY
+        if idle >= IDLE_TIMEOUT and not _busy():
+            print(f"[idle] no activity for {idle:.0f}s; shutting down", flush=True)
+            _exit_process()
+
 
 class GenerateRequest(BaseModel):
     prompt: str = Field(..., min_length=1)
@@ -332,6 +381,7 @@ def health() -> dict:
         "model_ready": ok,
         "missing_files": missing,
         "queue_size": WORK_QUEUE.qsize(),
+        "idle_timeout": IDLE_TIMEOUT,
         "data_dir": str(OUTPUT_DIR),
         "model_loaded": engine._state["model"] is not None,
         "loaded_model": engine._state["key"],
@@ -594,20 +644,14 @@ def shutdown() -> dict:
 
     Refused while a job is queued or running so a half-written WAV is never
     left behind. The exit happens on a short timer so the HTTP response can be
-    delivered first. ``os._exit`` skips ``atexit``, so llama-server is stopped
-    explicitly before exiting.
+    delivered first.
     """
-    busy = [j for j in JOBS.values() if j.status in ("queued", "running")]
-    if busy:
-        raise HTTPException(
-            status_code=409,
-            detail={"error": "jobs_in_progress", "count": len(busy)},
-        )
+    if _busy():
+        raise HTTPException(status_code=409, detail={"error": "jobs_in_progress"})
 
     def _exit() -> None:
         time.sleep(0.3)
-        suggest.unload()
-        os._exit(0)
+        _exit_process()
 
     threading.Thread(target=_exit, daemon=True).start()
     return {"stopping": True}
@@ -632,5 +676,12 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8765)
+    parser.add_argument(
+        "--idle-timeout", type=float, default=0.0,
+        help="exit after this many seconds without requests or jobs (0 = never)",
+    )
     args = parser.parse_args()
+    IDLE_TIMEOUT = args.idle_timeout
+    if IDLE_TIMEOUT > 0:
+        threading.Thread(target=_idle_watchdog, daemon=True).start()
     uvicorn.run(app, host=args.host, port=args.port, log_level="info")

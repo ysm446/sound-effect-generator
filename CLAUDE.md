@@ -82,7 +82,7 @@ Electron (renderer/React)  --HTTP-->  FastAPI (backend/server.py)  -->  engine.p
 - `backend/cli.py`（ラッパー `sfx.bat`）：標準ライブラリだけで `/api/*` を叩く。`/api/health` が応答しなければ `.venv` の Python で `server.py` を **detached で spawn**（`DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP`、ログは `cli-server.log`）し、health が返るまで待つ。生成は `POST /api/generate` → `GET /api/jobs/{id}` をポーリング → `data_dir + filename` で WAV パスを組み立てて返す。
 - `backend/mcp_server.py`：`mcp>=2`（`mcp.server.mcpserver.MCPServer`、旧 `FastMCP` は 2.x で改名）で stdio トランスポート。ツールの実体は `cli.py` の関数をそのまま呼ぶ。`.mcp.json` で Claude Code に登録済み（相対パスはプロジェクト直下からの解決前提）。
 - `POST /api/shutdown`：`sfx stop` / `stop_backend` 用。queued/running があれば 409 `jobs_in_progress`。応答後 0.3 秒で `os._exit(0)`（先に `suggest.unload()` で llama-server を落とす）。
-- バックエンドは UI と CLI で**共有**する。Electron が起動済みならそれを使い、CLI が起動したものは常駐して `sfx stop` まで残る（Electron は自分が spawn した Python しか kill しない）。
+- バックエンドは UI と CLI で**共有**する。Electron が起動済みならそれを使う。CLI が起動したものは `--idle-timeout`（`cli.py` が `SFX_IDLE_TIMEOUT`、既定 600 秒を渡す）付きで動き、**HTTP リクエストもジョブ完了も無い状態がその秒数続くと自分で `os._exit`** する（`server.py` の `_idle_watchdog`、5 秒間隔で判定、queued/running やエンジンロード中は落ちない）。HTTP ミドルウェアで全リクエストを活動扱いにしているので、UI が接続していればポーリングで生き続ける。Electron が spawn する場合はフラグ無し＝無期限（Electron は自分が spawn した Python しか kill しない）。
 - `mcp` を入れると starlette が 1.x に上がり `fastapi==0.115.6` が壊れる（`Router.__init__() got an unexpected keyword argument 'on_startup'`）。このため fastapi は `>=0.141` に上げてある。**fastapi をピン留めし直すときは mcp との starlette 互換を確認する。**
 - ポートは環境変数 `SFX_PORT` で変更可（テスト時に Electron のバックエンドと衝突させないため）。
 
